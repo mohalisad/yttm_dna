@@ -273,10 +273,13 @@ struct PriorityQueue {
   BigObjectQueue big_queue;
   uint64_t big_event_bound;
 
+  // SADRA: Maybe a better threshold to init!
   explicit PriorityQueue(uint64_t dataset_size) : big_queue(static_cast<uint64_t>(sqrt(dataset_size))),
                                                   big_event_bound(static_cast<uint64_t>(sqrt(dataset_size))) {}
 
   void push(const MergeCandidate &event) {
+    // SADRA: event =  count, left_token, right_token
+
     if (event.count == 0) {
       return;
     }
@@ -380,7 +383,7 @@ char* remove_rare_chars(char* begin, char* end, const flat_hash_set<uint32_t> &r
 }
 
 struct WordCount {
-  std::vector<uint32_t> word;
+  std::vector<uint32_t> word;  // SADRA: UTF8 Chars - we can change that =)
   uint64_t cnt;
 };
 
@@ -874,15 +877,18 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
 
   std::vector<flat_hash_map<uint32_t, uint64_t>> shared_char_cnt(n_threads);
 
+  // SADRA: Thread local vars
   std::vector<std::mutex> mt(n_threads);
   std::vector<std::condition_variable> cv(n_threads);
   std::vector<char> thread_finished(n_threads, 0);
   std::vector<char> main_finished(n_threads, 0);
   std::vector<uint64_t> text_len(n_threads);
 
+  // Gloval vars
   flat_hash_set<uint32_t> removed_chars;
   flat_hash_map<uint32_t, uint32_t> char2id;
 
+  // SADRA: Thread local vars
   std::vector<flat_hash_map<VectorSegment, WordCount>> hash2wordcnt(n_threads);
   int error_flag = 0;
 
@@ -891,7 +897,7 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
   std::vector<flat_hash_map<uint64_t, uint64_t>> pair2cnt_g(n_threads);
   PriorityQueue merge_order(1);
   std::vector<uint64_t> split_word_cnt;
-  std::vector<WordCount> word_cnt_global;
+  std::vector<WordCount> word_cnt_global;  // SADRA: Global important var
 
   auto comb2int = [](uint64_t a, uint32_t &b, uint32_t &c) {
     b = static_cast<uint32_t>(a >> 32u);
@@ -1080,18 +1086,21 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
       real_pair_cnt[x.first] += x.second;
     }
   }
-
+  std::cerr << "_________First counting_________" << std::endl;
   for (const auto &x : real_pair_cnt) {
     uint32_t ka, kb;
     comb2int(x.first, ka, kb);
     merge_order.push({x.second, ka, kb});
+    std::cerr << x.second << " " << ka << " " << kb << std::endl;
   }
+  std::cerr << "_______First counting Fin.______" << std::endl;
   std::vector<BPE_Rule> rules;
 
   auto get_recipe = [&](uint32_t x, uint32_t y) {
     assert(recipe.count(x));
     assert(recipe.count(y));
     std::vector<uint32_t> new_recipe = recipe[x];
+    // SADRA : new_recipe += recipe (list merging)
     new_recipe.insert(new_recipe.end(), recipe[y].begin(), recipe[y].end());
     return new_recipe;
   };
@@ -1169,8 +1178,10 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
           }
 
           merge_order.pop();
+          // Let's check if it's freq is real!
           real_cnt = check_cnt(
               int2comb(merge_event.left_token, merge_event.right_token));
+          std::cerr << "HERE--> " << merge_event.count << " " << real_cnt << std::endl;
           assert(real_cnt <= merge_event.count);
 
           if (real_cnt != merge_event.count) {
@@ -1195,7 +1206,7 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
           recipe[z] = get_recipe(x, y);
           recipe_s[z] = recipe_s[x] + recipe_s[y];
 
-          if (used_ids % 1000 == 0) {
+          if (used_ids % 1 == 0) {
             int used_symbols = 0;
             std::cerr << "id: " << z << "=" << x << "+" << y;
             used_symbols += std::to_string(z).size();
