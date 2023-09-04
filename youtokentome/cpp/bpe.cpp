@@ -409,9 +409,12 @@ flat_hash_map<VectorSegment, WordCount> compute_word_count(
       word.clear();
       word.push_back(char2id.at(SPACE_TOKEN));
       UTF8Iterator word_iter(begin_of_word, end_of_word);
+      std::string result;
       for (; !word_iter.empty(); ++word_iter) {
         word.push_back(char2id.at(*word_iter));
+        result += *word_iter;
       }
+      std::cerr << "___NAZAR: WORD COUNT___ " << result << " ___NAZAR: WORD COUNT FIN.___" << std::endl;
       hash2wordcnt[word_hash] = {word, 1};
     } else {
       it->second.cnt++;
@@ -440,9 +443,24 @@ void build_linked_list(const std::vector<WordCount> &word_cnt,
                        std::vector<std::vector<NodeEncoder>> &list,
                        flat_hash_map<uint64_t, std::vector<Position>> &pair2pos,
                        flat_hash_map<uint64_t, uint64_t> &pair2cnt) {
+  std::cerr << "___word_cnt in build_linked_list function___" << std::endl;
+  for (uint64_t i = 0; i < word_cnt.size(); i++){
+    for (uint64_t j = 0; j < word_cnt[i].word.size(); j++){
+      std::cerr << word_cnt[i].word[j] << " ";
+    }
+    std::cerr << ": " << word_cnt[i].cnt << std::endl;
+  }
+  std::cerr << "___word_cnt in build_linked_list function fin.___" << std::endl;
+  // for simple test, we have two words and one of them is repeated 2 times and the other one 1 time, so size of word_cnt is 2
   list.resize(word_cnt.size());
+  // first we loop over words
   for (uint64_t i = 0; i < word_cnt.size(); i++) {
+    // here we loop over characters of each word
     for (uint32_t ch : word_cnt[i].word) {
+      // if for example the word is 'abb', then we have b twice back to back
+      // so we don't create two nodes in linkedlist and we just increament seg_len of 'b'
+      // but for 'a' to 'b' for above example, we create a new node and the value is ch which
+      // is character 'b' and we link it to preious and next nodes with seg_len = 1
       if (!list[i].empty() && list[i].back().val == ch) {
         list[i].back().seg_len++;
       } else {
@@ -452,28 +470,44 @@ void build_linked_list(const std::vector<WordCount> &word_cnt,
     }
 
     list[i].back().next = -1;
+    // loop through characters of each word in list
     for (uint64_t j = 0; j < list[i].size(); j++) {
+      // we should compute number of repeats of each pairs so for last character we can not do that
+      // so we check to don't do that for last character
       if (j + 1 < list[i].size()) {
+        // creating the combination of values for pairs
         uint64_t comb = int2comb(list[i][j].val, list[i][j + 1].val);
+        // check if that pair is in pair2pos or not
         auto it = pair2pos.find(comb);
         if (it == pair2pos.end()) {
+          // if that pair is not in the pair2pos, we simply add it
+          // here i is word number and j is character number
           pair2pos[comb] = {{i, j}};
         } else {
+          // if that pair is in pair2pos, we just append this position to end of that pair positions
           it->second.emplace_back(i, j);
         }
+        // pair2cnt is counter for pairs, so simply we add that pair to pair2cnt and .cnt is number of repetition for that  word
         pair2cnt[comb] += word_cnt[i].cnt;
       }
       assert(list[i][j].seg_len >= 1);
 
+      // this seg_len is for for example in 'abb', we have just one node for 'b'. so if seg_len is above 1, they are like pairs
+      // so we need to consider them in pair2pos and pair2cnt
       if (list[i][j].seg_len > 1) {
+        // first we create combination for 'b' for example in above examplew
         uint64_t comb = int2comb(list[i][j].val, list[i][j].val);
         auto it = pair2pos.find(comb);
+        // calculate value to add which is "number of repetition for word * number of paris"
         uint64_t cc = word_cnt[i].cnt * pairsInSeg(list[i][j].seg_len);
         if (it == pair2pos.end()) {
+          // if that pair is not in pair2pos, simply we create new key and add that position
           pair2pos[comb] = {{i, j}};
         } else {
+          // but if that pair is in pair2pos, we just append it
           it->second.emplace_back(i, j);
         }
+        // and here we add number of repetitions for that pair
         pair2cnt[comb] += cc;
       }
     }
@@ -510,12 +544,18 @@ void worker_doing_merge(
 
   uint32_t cur_token_rule =
       char2id.size() + bpe_config.special_tokens.n_special_tokens();
+  // lists_of_words is the main linkedlist, so by word_id, we can get vector of special word
+  // and p1 is the index of an special node in the linkedlist
+  // this function simply compute comb of pair of p1 and p2 and p2 is the next character after p1
   auto get_pair_code = [&](uint64_t word_id, uint64_t p1) {
     int p2 = lists_of_tokens[word_id][p1].next;
     return int2comb(lists_of_tokens[word_id][p1].val,
                     lists_of_tokens[word_id][p2].val);
   };
 
+  // this function is like above function but is for characters which seg_len of them is more than one
+  // which means the number of repetition of that character is more than one
+  // so they are like pairs and this function computs comb of them
   auto get_self_code = [&](uint64_t word_id, uint64_t p1) {
     return int2comb(lists_of_tokens[word_id][p1].val,
                     lists_of_tokens[word_id][p1].val);
@@ -525,6 +565,9 @@ void worker_doing_merge(
     pair2cnt[get_pair_code(word_id, pos_id)] -= word_freq[word_id];
   };
 
+  // just add new values to pair2pos and pair2cnt
+  // first create comb of word_id and pos_id and then add that to pair2pos
+  // and at last add the word frequency of that word_id
   auto add_pair = [&](uint64_t word_id, uint64_t pos_id) {
     uint64_t comb = get_pair_code(word_id, pos_id);
     auto it = pair2pos.find(comb);
@@ -542,6 +585,8 @@ void worker_doing_merge(
     it->second.emplace_back(word_id, pos_id);
   };
 
+  // in this function we can add those characters that have seg_len more than one
+  // so the comb in this function is based on word_id and pos_id
   auto add_self_pair = [&](uint64_t word_id, uint64_t pos_id) {
     int seg_len = lists_of_tokens[word_id][pos_id].seg_len;
     assert(seg_len >= 2);
@@ -593,6 +638,7 @@ void worker_doing_merge(
         add_merge_compensation(word_id, pos1, score_before - score_after);
       }
 
+      // the merge was successful and we should eliminate pos2
       cur_list[pos1].next = cur_list[pos2].next;
       cur_list[pos2] = {0, -1, -1, 0};
       if (cur_list[pos1].next != -1) {
@@ -602,6 +648,25 @@ void worker_doing_merge(
     }
   };
   while (true) {
+    std::cerr << std::endl << "@@@NAZAR: pair2pos value@@@" << std::endl;
+    for (const auto& pair : pair2pos) {
+      uint32_t ka, kb;
+      ka = static_cast<uint32_t>(pair.first >> 32u);
+      kb = static_cast<uint32_t>(pair.first & UINT32_MAX);
+      std::cout << "Key: " << "(" << ka << ", " << kb << ")" << ", ";
+      std::map<int, int> sentence2count;
+      for (const auto& position : pair.second) {
+          // std::cout << "(" << position.word_id << ", " << position.pos_id << ") ";
+          if (sentence2count.find(position.word_id) == sentence2count.end())
+            sentence2count[position.word_id] = 0;
+          sentence2count[position.word_id] += 1;
+      }
+      for (const auto& pair : sentence2count) {
+        std::cout << "Sentence number " << pair.first << ": " << pair.second << "\t";
+      }
+      std::cout << std::endl;
+    }
+    std::cerr << "@@@NAZAR: pair2pos value fin.@@@" << std::endl;
     {
       std::unique_lock<std::mutex> ul(mt[thread_id]);
       cv[thread_id].wait(ul, [&] {
@@ -614,6 +679,7 @@ void worker_doing_merge(
       }
     }
 
+    // z = x + y
     uint32_t x = task_order[cur_token_rule % 2].x;
     uint32_t y = task_order[cur_token_rule % 2].y;
     uint32_t z = task_order[cur_token_rule % 2].z;
@@ -874,6 +940,11 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
 
     split_pos.push_back(candidate);
   }
+  std::cerr << "_____NAZAR: POSITION START_____" << std::endl;
+  for(std::vector<uint64_t>::iterator it = split_pos.begin(); it!= split_pos.end(); ++it) {
+        std::cout << *it << "\n";
+  }
+  std::cerr << "_____NAZAR: POSITION END_____" << std::endl;
 
   std::vector<flat_hash_map<uint32_t, uint64_t>> shared_char_cnt(n_threads);
 
@@ -1032,6 +1103,11 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
   main_wait_threads();
   // main is working 2
 
+  // NAZAR: transform all data to thread number one data
+  // iterating over hash is important
+  // because the order is based on hash value from small hash value to large hash value
+  // and it is not based on line number or word order
+  // IT IS BASED ON HASH VALUE, SO LINE'S ORDER WILL BE INTERUPTED
   for (uint64_t i = 1; i < n_threads; i++) {
     for (const auto &x : hash2wordcnt[i]) {
       auto it = hash2wordcnt[0].find(x.first);
@@ -1045,6 +1121,7 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
   }
 
   word_cnt_global.resize(hash2wordcnt[0].size());
+  // NAZAR: transform wordcnt data to word_cnt_global
   std::transform(
       hash2wordcnt[0].begin(), hash2wordcnt[0].end(), word_cnt_global.begin(),
       [](const std::pair<VectorSegment, WordCount> &x) { return x.second; });
@@ -1091,11 +1168,22 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
     uint32_t ka, kb;
     comb2int(x.first, ka, kb);
     merge_order.push({x.second, ka, kb});
-    std::cerr << x.second << " " << ka << " " << kb << std::endl;
+    std::cerr << x.second << " " << ka << " " << kb << " === " << x.second << " " << recipe_s[ka] << " " << recipe_s[kb] << std::endl;
   }
   std::cerr << "_______First counting Fin.______" << std::endl;
   std::vector<BPE_Rule> rules;
 
+  std::cerr << std::endl << "@@@NAZAR: recipe initial value@@@" << std::endl;
+  for (const auto& pair : recipe) {
+      std::cout << "Key: " << pair.first << ", Values: ";
+      for (const auto& value : pair.second) {
+          std::cout << value << " ";
+      }
+      std::cout << std::endl;
+  }
+  std::cerr << "@@@NAZAR: recipe initial value fin.@@@" << std::endl;
+  // below function simply append recipe[y] values at the end of recipe[x] and 
+  // returns a single std::vector<uint32_t> which is like {values of recipe[x], ..., values of recipe[y]}
   auto get_recipe = [&](uint32_t x, uint32_t y) {
     assert(recipe.count(x));
     assert(recipe.count(y));
@@ -1105,6 +1193,8 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
     return new_recipe;
   };
 
+  // this function just add values of a mask which was calculated in different threads
+  // and add them together to find the main count of that mask
   std::function<uint64_t(uint64_t)> check_cnt = [&](uint64_t mask) {
     uint64_t ret = 0;
     for (uint64_t i = 0; i < n_threads; i++) {
@@ -1199,11 +1289,15 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
           x = merge_event.left_token;
           y = merge_event.right_token;
           z = used_ids;
+          std::cerr << "NAZAR: Selected candidate: " << "LEFT TOKEN: " << x << " RIGHT TOKEN: " << y << " Z: " << z << std::endl;
           break;
         }
         if (last_failed_try != finished_cur && x != UINT32_MAX) {
+          // new task(merge) is ready
           task_order[used_ids % 2] = {x, y, z};
+          // merge list of x and y and put them in z
           recipe[z] = get_recipe(x, y);
+          // add string of y to x and put that to z
           recipe_s[z] = recipe_s[x] + recipe_s[y];
 
           if (used_ids % 1 == 0) {
@@ -1228,7 +1322,11 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
             std::cerr << "  subword: " << recipe_s[z] << "="
                       << recipe_s[x] + "+" + recipe_s[y] << std::endl;
           }
+          else{
+            std::cerr << std::endl << "!!!!!THIS PART SHOULD NOT BE EXECUTED BECAUSE NUM(INT)%1 IS ALWAYS ZERO!!!!" << std::endl;
+          }
           used_ids++;
+          // now we have z = x + y rule in our rules
           rules.emplace_back(x, y, z);
         }
 
@@ -1294,6 +1392,16 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
   for (auto &t : threads) {
     t.join();
   }
+
+  std::cerr << std::endl << "@@@NAZAR: recipe final value@@@" << std::endl;
+  for (const auto& pair : recipe) {
+      std::cout << "Key: " << pair.first << ", Values: ";
+      for (const auto& value : pair.second) {
+          std::cout << value << " ";
+      }
+      std::cout << std::endl;
+  }
+  std::cerr << "@@@NAZAR: recipe final value fin.@@@" << std::endl;
 
   rename_tokens(char2id, rules, bpe_config.special_tokens, n_tokens);
 
