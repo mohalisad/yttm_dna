@@ -23,6 +23,8 @@
 #include "utf8.h"
 #include "utils.h"
 
+// #define DETERMINISTIC_QUEUE
+
 namespace vkcom {
 
 struct VectorSegment {
@@ -146,6 +148,73 @@ bool rule_intersection(BPE_Rule rule, uint32_t new_left, uint32_t new_right) {
   return rule.y == new_left || rule.x == new_right;
 }
 
+std::vector<flat_hash_map<uint64_t, std::vector<Position>>> pair2pos_vector;
+std::vector<flat_hash_map<uint64_t, std::vector<Position>>> pair2pos_for_delete;
+
+uint64_t calculate_score(uint64_t comb){
+  flat_hash_map<uint64_t, std::vector<uint64_t>> aggregated_pair2pos_for_delete;
+  uint64_t counter = 0;
+  for (const auto& map : pair2pos_for_delete) {
+    uint64_t max_word_id = 0;
+    int is_empty = 1;
+    for (const auto& pair : map) {
+      if (aggregated_pair2pos_for_delete.find(pair.first) == aggregated_pair2pos_for_delete.end())
+        aggregated_pair2pos_for_delete[pair.first] = {};
+      for (const auto& position : pair.second) {
+        is_empty = 0;
+        aggregated_pair2pos_for_delete[pair.first].emplace_back(int2comb(position.word_id + counter, position.pos_id));
+        if (position.word_id > max_word_id)
+          max_word_id = position.word_id;
+      }
+    }
+    if (is_empty == 0)
+      counter += max_word_id + 1;
+  }
+
+  flat_hash_map<uint64_t, std::vector<Position>> aggregated_pair2pos;
+  counter = 0;
+  for (const auto& map : pair2pos_vector) {
+    uint64_t max_word_id = 0;
+    int is_empty = 1;
+    for (const auto& pair : map) {
+      if (aggregated_pair2pos.find(pair.first) == aggregated_pair2pos.end()){
+        aggregated_pair2pos[pair.first] = {};
+      }
+      for (const auto& position : pair.second) {
+        is_empty = 0;
+        if (aggregated_pair2pos_for_delete.find(pair.first) != aggregated_pair2pos_for_delete.end()){
+          if (std::find(aggregated_pair2pos_for_delete[pair.first].begin(), aggregated_pair2pos_for_delete[pair.first].end(), int2comb(position.word_id + counter, position.pos_id))
+            == aggregated_pair2pos_for_delete[pair.first].end()){
+              aggregated_pair2pos[pair.first].emplace_back(position.word_id + counter, position.pos_id); 
+          }
+        }
+        else{
+          aggregated_pair2pos[pair.first].emplace_back(position.word_id + counter, position.pos_id); 
+        }
+        if (position.word_id > max_word_id){
+          max_word_id = position.word_id;
+        }
+      }
+    }
+    if (is_empty == 0)
+      counter += max_word_id + 1;
+  }
+
+  std::map<int, int> sentence2count;
+  uint32_t whole_repetition = 0;
+  uint32_t sentence_repetition = 0;
+  for (const auto& position : aggregated_pair2pos[comb]) {
+    if (sentence2count.find(position.word_id) == sentence2count.end())
+      sentence2count[position.word_id] = 0;
+    sentence2count[position.word_id] += 1;
+  }
+  for (const auto& pair : sentence2count) {
+    sentence_repetition += 1;
+    whole_repetition += pair.second;
+  }
+  return sentence_repetition * whole_repetition;
+}
+
 struct SmallObjectQueue {
   std::vector<std::vector<MergeCandidate>> queue;
   bool flag_started{false};
@@ -154,6 +223,9 @@ struct SmallObjectQueue {
   SmallObjectQueue() = default;
 
   void push(const MergeCandidate &event) {
+    uint64_t comb = int2comb(event.left_token, event.right_token);
+    uint64_t score = calculate_score(comb);
+    std::cerr << "in SMALL queue, the score of " << event.left_token << ", " << event.right_token << " is " << score << std::endl;
     if (queue.size() <= event.count) {
       queue.resize(event.count + 1);
     }
@@ -217,6 +289,9 @@ struct BigObjectQueue {
   BigObjectQueue(uint64_t big_event_bound) : big_event_bound(big_event_bound) {}
 
   void push(const MergeCandidate &event) {
+    uint64_t comb = int2comb(event.left_token, event.right_token);
+    uint64_t score = calculate_score(comb);
+    std::cerr << "in BIG queue, the score of " << event.left_token << ", " << event.right_token << " is " << score << std::endl;
     big_events.push_back(event);
   }
 
@@ -927,6 +1002,8 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
                              const std::string &output_file,
                              BpeConfig bpe_config, BPEState *bpe_state) {
   assert(bpe_config.n_threads >= 1 || bpe_config.n_threads == -1);
+  pair2pos_vector.resize(bpe_config.n_threads);
+  pair2pos_for_delete.resize(bpe_config.n_threads);
   uint64_t n_threads = bpe_config.n_threads;
   std::vector<uint64_t> split_pos;
   split_pos.push_back(0);
@@ -994,8 +1071,6 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
 
   std::vector<std::thread> threads;
 
-  std::vector<flat_hash_map<uint64_t, std::vector<Position>>> pair2pos_vector(n_threads);
-  std::vector<flat_hash_map<uint64_t, std::vector<Position>>> pair2pos_for_delete(n_threads);
 
   for (uint64_t i = 0; i < n_threads; i++) {
     threads.emplace_back(
