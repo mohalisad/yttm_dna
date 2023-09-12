@@ -225,14 +225,14 @@ struct SmallObjectQueue {
   void push(const MergeCandidate &event) {
     uint64_t comb = int2comb(event.left_token, event.right_token);
     uint64_t score = calculate_score(comb);
-    std::cerr << "in SMALL queue, the score of " << event.left_token << ", " << event.right_token << " is " << score << std::endl;
-    if (queue.size() <= event.count) {
-      queue.resize(event.count + 1);
+    // std::cerr << "in SMALL queue, the score of " << event.left_token << ", " << event.right_token << " is " << score << std::endl;
+    if (queue.size() <= score) {
+      queue.resize(score + 1);
     }
     if (flag_started) {
-      assert(event.count + 1 <= queue.size());
+      assert(score + 1 <= queue.size());
     };
-    queue[event.count].push_back(event);
+    queue[score].push_back(event);
     _size++;
 #ifdef DETERMINISTIC_QUEUE
     if (queue.size() - 1 == event.count && flag_started) {
@@ -289,9 +289,9 @@ struct BigObjectQueue {
   BigObjectQueue(uint64_t big_event_bound) : big_event_bound(big_event_bound) {}
 
   void push(const MergeCandidate &event) {
-    uint64_t comb = int2comb(event.left_token, event.right_token);
-    uint64_t score = calculate_score(comb);
-    std::cerr << "in BIG queue, the score of " << event.left_token << ", " << event.right_token << " is " << score << std::endl;
+    // uint64_t comb = int2comb(event.left_token, event.right_token);
+    // uint64_t score = calculate_score(comb);
+    // std::cerr << "in BIG queue, the score of " << event.left_token << ", " << event.right_token << " is " << score << std::endl;
     big_events.push_back(event);
   }
 
@@ -320,7 +320,11 @@ struct BigObjectQueue {
     sort(big_events.begin(), big_events.end()); /// TODO remove unoptimal code
 #else
     for (auto &big_event : big_events) {
-      if (big_event.count > big_events.back().count) {
+      uint64_t not_last_comb = int2comb(big_event.left_token, big_event.right_token);
+      uint64_t not_last_score = calculate_score(not_last_comb);
+      uint64_t last_comb = int2comb(big_events.back().left_token, big_events.back().right_token);
+      uint64_t last_score = calculate_score(last_comb);
+      if (not_last_score > last_score) {
         std::swap(big_event, big_events.back());
       }
     }
