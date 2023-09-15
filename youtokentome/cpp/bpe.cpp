@@ -8,6 +8,7 @@
 #include <condition_variable>
 #include <cstring>
 #include <functional>
+#include <fstream>
 #include <iostream>
 #include <mutex>
 #include <queue>
@@ -24,6 +25,23 @@
 #include "utils.h"
 
 // #define DETERMINISTIC_QUEUE
+
+std::vector<uint64_t> chart_sentence_count;
+
+void chart_write_vector_in_file(const std::string& file_path, std::vector<uint64_t> main_vector){
+  std::ofstream outfile(file_path);
+
+  if (!outfile.is_open()) {
+      std::cerr << "Failed to open " << file_path << std::endl;
+      return;
+  }
+
+  for (const uint64_t& count : main_vector) {
+      outfile << count << std::endl;
+  }
+
+  outfile.close();
+}
 
 namespace vkcom {
 
@@ -1431,6 +1449,9 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
               whole_repetition += pair.second;
               std::cout << "Sentence number " << pair.first << ": " << pair.second << "\t";
             }
+            if (ka == merge_event.left_token && kb == merge_event.right_token){
+              chart_sentence_count.push_back(sentence_repetition);
+            }
             std::cout << "-> score: " << sentence_repetition * whole_repetition;
             std::cout << std::endl;
           }
@@ -1558,6 +1579,9 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
   *bpe_state = {char2id, rules, bpe_config.special_tokens};
   bpe_state->dump(output_file);
   std::cerr << "model saved to: " << output_file << std::endl;
+
+  chart_write_vector_in_file("./simpletest/bpe_sentence_count_chart.txt", chart_sentence_count);
+
   return Status();
 }
 
