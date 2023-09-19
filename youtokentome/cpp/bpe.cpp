@@ -169,69 +169,31 @@ bool rule_intersection(BPE_Rule rule, uint32_t new_left, uint32_t new_right) {
 
 std::vector<flat_hash_map<uint64_t, std::vector<Position>>> pair2pos_vector;
 std::vector<flat_hash_map<uint64_t, std::vector<Position>>> pair2pos_for_delete;
+std::vector<flat_hash_map<uint64_t, std::vector<Position>>> aggregated_pair2pos;
 
 uint64_t calculate_score(uint64_t comb){
-  flat_hash_map<uint64_t, std::vector<uint64_t>> aggregated_pair2pos_for_delete;
-  uint64_t counter = 0;
-  for (const auto& map : pair2pos_for_delete) {
-    uint64_t max_word_id = 0;
-    int is_empty = 1;
-    for (const auto& pair : map) {
-      if (aggregated_pair2pos_for_delete.find(pair.first) == aggregated_pair2pos_for_delete.end())
-        aggregated_pair2pos_for_delete[pair.first] = {};
-      for (const auto& position : pair.second) {
-        is_empty = 0;
-        aggregated_pair2pos_for_delete[pair.first].emplace_back(int2comb(position.word_id + counter, position.pos_id));
-        if (position.word_id > max_word_id)
-          max_word_id = position.word_id;
+  uint32_t sentence_count = 0;
+  uint32_t whole_count = 0;
+  for (const auto& map : aggregated_pair2pos){
+    if (map.find(comb) != map.end()){
+      std::vector<Position> comb_value = map.at(comb);
+      std::map<uint64_t, uint64_t> sentence2count;
+      uint32_t whole_repetition = 0;
+      uint32_t sentence_repetition = 0;
+      for (const auto& position : comb_value) {
+        if (sentence2count.find(position.word_id) == sentence2count.end())
+          sentence2count[position.word_id] = 0;
+        sentence2count[position.word_id] += 1;
       }
+      for (const auto& pair : sentence2count) {
+        sentence_repetition += 1;
+        whole_repetition += pair.second;
+      }
+      sentence_count += sentence_repetition;
+      whole_count += whole_repetition;
     }
-    if (is_empty == 0)
-      counter += max_word_id + 1;
   }
-
-  flat_hash_map<uint64_t, std::vector<Position>> aggregated_pair2pos;
-  counter = 0;
-  for (const auto& map : pair2pos_vector) {
-    uint64_t max_word_id = 0;
-    int is_empty = 1;
-    for (const auto& pair : map) {
-      if (aggregated_pair2pos.find(pair.first) == aggregated_pair2pos.end()){
-        aggregated_pair2pos[pair.first] = {};
-      }
-      for (const auto& position : pair.second) {
-        is_empty = 0;
-        if (aggregated_pair2pos_for_delete.find(pair.first) != aggregated_pair2pos_for_delete.end()){
-          if (std::find(aggregated_pair2pos_for_delete[pair.first].begin(), aggregated_pair2pos_for_delete[pair.first].end(), int2comb(position.word_id + counter, position.pos_id))
-            == aggregated_pair2pos_for_delete[pair.first].end()){
-              aggregated_pair2pos[pair.first].emplace_back(position.word_id + counter, position.pos_id); 
-          }
-        }
-        else{
-          aggregated_pair2pos[pair.first].emplace_back(position.word_id + counter, position.pos_id); 
-        }
-        if (position.word_id > max_word_id){
-          max_word_id = position.word_id;
-        }
-      }
-    }
-    if (is_empty == 0)
-      counter += max_word_id + 1;
-  }
-
-  std::map<int, int> sentence2count;
-  uint32_t whole_repetition = 0;
-  uint32_t sentence_repetition = 0;
-  for (const auto& position : aggregated_pair2pos[comb]) {
-    if (sentence2count.find(position.word_id) == sentence2count.end())
-      sentence2count[position.word_id] = 0;
-    sentence2count[position.word_id] += 1;
-  }
-  for (const auto& pair : sentence2count) {
-    sentence_repetition += 1;
-    whole_repetition += pair.second;
-  }
-  return sentence_repetition * whole_repetition;
+  return int2comb(sentence_count, whole_count);
 }
 
 struct SmallObjectQueue {
@@ -244,6 +206,11 @@ struct SmallObjectQueue {
   void push(const MergeCandidate &event) {
     uint64_t comb = int2comb(event.left_token, event.right_token);
     uint64_t score = calculate_score(comb);
+    uint32_t sentence_count;
+    uint32_t whole_count;
+    sentence_count = static_cast<uint32_t>(score >> 32u);
+    whole_count = static_cast<uint32_t>(score & UINT32_MAX);
+    score = sentence_count * whole_count;
     std::cerr << "in SMALL queue, the score of " << event.left_token << ", " << event.right_token << " is " << score << std::endl;
     if (queue.size() <= event.count) {
       queue.resize(event.count + 1);
@@ -310,6 +277,11 @@ struct BigObjectQueue {
   void push(const MergeCandidate &event) {
     uint64_t comb = int2comb(event.left_token, event.right_token);
     uint64_t score = calculate_score(comb);
+    uint32_t sentence_count;
+    uint32_t whole_count;
+    sentence_count = static_cast<uint32_t>(score >> 32u);
+    whole_count = static_cast<uint32_t>(score & UINT32_MAX);
+    score = sentence_count * whole_count;
     std::cerr << "in BIG queue, the score of " << event.left_token << ", " << event.right_token << " is " << score << std::endl;
     big_events.push_back(event);
   }
@@ -536,7 +508,7 @@ struct NodeEncoder {
 void build_linked_list(const std::vector<WordCount> &word_cnt,
                        std::vector<std::vector<NodeEncoder>> &list,
                        flat_hash_map<uint64_t, std::vector<Position>> &pair2pos,
-                       flat_hash_map<uint64_t, uint64_t> &pair2cnt) {
+                       flat_hash_map<uint64_t, uint64_t> &pair2cnt, flat_hash_map<uint64_t, std::vector<Position>> &aggregated) {
   std::cerr << "___word_cnt in build_linked_list function___" << std::endl;
   for (uint64_t i = 0; i < word_cnt.size(); i++){
     for (uint64_t j = 0; j < word_cnt[i].word.size(); j++){
@@ -581,6 +553,13 @@ void build_linked_list(const std::vector<WordCount> &word_cnt,
           // if that pair is in pair2pos, we just append this position to end of that pair positions
           it->second.emplace_back(i, j);
         }
+        // for aggregated
+        auto it_agg = aggregated.find(comb);
+        if (it_agg == aggregated.end()) {
+          aggregated[comb] = {{i, j}};
+        } else {
+          it_agg->second.emplace_back(i, j);
+        }
         // pair2cnt is counter for pairs, so simply we add that pair to pair2cnt and .cnt is number of repetition for that  word
         pair2cnt[comb] += word_cnt[i].cnt;
       }
@@ -600,6 +579,13 @@ void build_linked_list(const std::vector<WordCount> &word_cnt,
         } else {
           // but if that pair is in pair2pos, we just append it
           it->second.emplace_back(i, j);
+        }
+        // for aggregate
+        auto it_agg = aggregated.find(comb);
+        if (it_agg == aggregated.end()) {
+          aggregated[comb] = {{i, j}};
+        } else {
+          it_agg->second.emplace_back(i, j);
         }
         // and here we add number of repetitions for that pair
         pair2cnt[comb] += cc;
@@ -632,7 +618,7 @@ void worker_doing_merge(
     std::atomic<uint32_t> &real_n_tokens,
     std::vector<std::atomic<uint32_t>> &results_ready, const BpeConfig &bpe_config,
     std::mutex &main_loop_mt, std::condition_variable &main_loop_cv,
-    flat_hash_map<uint64_t, std::vector<Position>> &pair2pos_delete) {
+    flat_hash_map<uint64_t, std::vector<Position>> &pair2pos_delete, flat_hash_map<uint64_t, std::vector<Position>> &aggregated) {
   auto &pair2cnt = pair2cnt_g[thread_id];
   flat_hash_set<uint32_t> left_tokens;
   flat_hash_set<uint32_t> right_tokens;
@@ -671,6 +657,10 @@ void worker_doing_merge(
       pair2pos_delete[comb] = {};
     }
     pair2pos_delete[comb].emplace_back(Position(word_id, pos_id));
+
+    aggregated[comb].erase(std::remove_if(aggregated[comb].begin(), aggregated[comb].end(), [word_id, pos_id](const Position &p) {
+      return p.word_id == word_id && p.pos_id == pos_id;
+    }), aggregated[comb].end());
     std::cerr << "&&&&&&&&&&&&&&&&&&&&&&&&&&&&& Removing pair fin. &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&" << std::endl;
 
     pair2cnt[comb] -= word_freq[word_id];
@@ -687,6 +677,13 @@ void worker_doing_merge(
     } else {
       it->second.emplace_back(word_id, pos_id);
     }
+    // for aggregate
+    auto it_agg = aggregated.find(comb);
+    if (it_agg == aggregated.end()) {
+      aggregated[comb] = {{word_id, pos_id}};
+    } else {
+      it_agg->second.emplace_back(word_id, pos_id);
+    }
     pair2cnt[comb] += word_freq[word_id];
   };
 
@@ -694,6 +691,10 @@ void worker_doing_merge(
     auto it = pair2pos.find(get_pair_code(word_id, pos_id));
     assert(it != pair2pos.end());
     it->second.emplace_back(word_id, pos_id);
+    // for aggregated
+    auto it_agg = aggregated.find(get_pair_code(word_id, pos_id));
+    assert(it_agg != aggregated.end());
+    it_agg->second.emplace_back(word_id, pos_id);
   };
 
   // in this function we can add those characters that have seg_len more than one
@@ -709,6 +710,14 @@ void worker_doing_merge(
       assert(pair2pos[comb].size() == 1);
     } else {
       it->second.emplace_back(word_id, pos_id);
+    }
+    // for aggregate
+    auto it_agg = aggregated.find(comb);
+    if (it_agg == aggregated.end()) {
+      aggregated[comb] = {{word_id, pos_id}};
+      assert(aggregated[comb].size() == 1);
+    } else {
+      it_agg->second.emplace_back(word_id, pos_id);
     }
     pair2cnt[comb] += real_cnt;
   };
@@ -947,6 +956,8 @@ void worker_doing_merge(
       }
     }
     pair2pos.erase(int2comb(x, y));
+    // for aggregate
+    aggregated.erase(int2comb(x, y));
     {
       std::unique_lock<std::mutex> lk(mt[thread_id]);
 
@@ -1023,6 +1034,7 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
   assert(bpe_config.n_threads >= 1 || bpe_config.n_threads == -1);
   pair2pos_vector.resize(bpe_config.n_threads);
   pair2pos_for_delete.resize(bpe_config.n_threads);
+  aggregated_pair2pos.resize(bpe_config.n_threads);
   uint64_t n_threads = bpe_config.n_threads;
   std::vector<uint64_t> split_pos;
   split_pos.push_back(0);
@@ -1140,7 +1152,7 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
           build_linked_list(
               {word_cnt_global.begin() + split_word_cnt[thread_id],
                word_cnt_global.begin() + split_word_cnt[thread_id + 1]},
-              lists_of_tokens, pair2pos_vector[thread_id], pair2cnt_g[thread_id]);
+              lists_of_tokens, pair2pos_vector[thread_id], pair2cnt_g[thread_id], aggregated_pair2pos[thread_id]);
 
           std::transform(
               word_cnt_global.begin() + split_word_cnt[thread_id],
@@ -1156,7 +1168,7 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
                              word_freq, mt, cv, task_order, thread_use_hs,
                              char2id, left_tokens_submit, right_tokens_submit,
                              real_n_tokens, results_ready, bpe_config,
-                             main_loop_mt, main_loop_cv, pair2pos_for_delete[thread_id]);
+                             main_loop_mt, main_loop_cv, pair2pos_for_delete[thread_id], aggregated_pair2pos[thread_id]);
         },
         i);
   }
@@ -1381,83 +1393,47 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
             continue;
           }
 
-          // creating pairs to delete
-          flat_hash_map<uint64_t, std::vector<uint64_t>> aggregated_pair2pos_for_delete;
-          uint64_t counter = 0;
-          for (const auto& map : pair2pos_for_delete) {
-            uint64_t max_word_id = 0;
-            int is_empty = 1;
+          flat_hash_map<uint64_t, uint64_t> pair_sentence_count;
+          flat_hash_map<uint64_t, uint64_t> pair_whole_count;
+          for (const auto& map : aggregated_pair2pos){
             for (const auto& pair : map) {
-              if (aggregated_pair2pos_for_delete.find(pair.first) == aggregated_pair2pos_for_delete.end())
-                aggregated_pair2pos_for_delete[pair.first] = {};
+              std::map<uint64_t, uint64_t> sentence2count;
+              uint32_t whole_repetition = 0;
+              uint32_t sentence_repetition = 0;
               for (const auto& position : pair.second) {
-                is_empty = 0;
-                aggregated_pair2pos_for_delete[pair.first].emplace_back(int2comb(position.word_id + counter, position.pos_id));
-                if (position.word_id > max_word_id)
-                  max_word_id = position.word_id;
+                if (sentence2count.find(position.word_id) == sentence2count.end())
+                  sentence2count[position.word_id] = 0;
+                sentence2count[position.word_id] += 1;
               }
+              for (const auto& pair : sentence2count) {
+                sentence_repetition += 1;
+                whole_repetition += pair.second;
+              }
+              if (pair_sentence_count.find(pair.first) == pair_sentence_count.end())
+                pair_sentence_count[pair.first] = 0;
+              pair_sentence_count[pair.first] += sentence_repetition;
+              if (pair_whole_count.find(pair.first) == pair_whole_count.end())
+                pair_whole_count[pair.first] = 0;
+              pair_whole_count[pair.first] += whole_repetition;
             }
-            if (is_empty == 0)
-              counter += max_word_id + 1;
           }
 
-          // main remained pairs
-          std::cerr << std::endl << "@@@NAZAR: pair2pos value@@@" << std::endl;
-          flat_hash_map<uint64_t, std::vector<Position>> aggregated_pair2pos;
-          counter = 0;
-          for (const auto& map : pair2pos_vector) {
-            uint64_t max_word_id = 0;
-            int is_empty = 1;
-            for (const auto& pair : map) {
-              if (aggregated_pair2pos.find(pair.first) == aggregated_pair2pos.end()){
-                aggregated_pair2pos[pair.first] = {};
-              }
-              for (const auto& position : pair.second) {
-                is_empty = 0;
-                if (aggregated_pair2pos_for_delete.find(pair.first) != aggregated_pair2pos_for_delete.end()){
-                  if (std::find(aggregated_pair2pos_for_delete[pair.first].begin(), aggregated_pair2pos_for_delete[pair.first].end(), int2comb(position.word_id + counter, position.pos_id))
-                    == aggregated_pair2pos_for_delete[pair.first].end()){
-                      aggregated_pair2pos[pair.first].emplace_back(position.word_id + counter, position.pos_id); 
-                  }
-                }
-                else{
-                  aggregated_pair2pos[pair.first].emplace_back(position.word_id + counter, position.pos_id); 
-                }
-                if (position.word_id > max_word_id){
-                  max_word_id = position.word_id;
-                }
-              }
-            }
-            if (is_empty == 0)
-              counter += max_word_id + 1;
-          }
-
-          for (const auto& pair : aggregated_pair2pos) {
+          for (const auto& pair : pair_sentence_count) {
             uint32_t ka, kb;
             ka = static_cast<uint32_t>(pair.first >> 32u);
             kb = static_cast<uint32_t>(pair.first & UINT32_MAX);
-            std::cout << "Key: " << "(" << ka << ", " << kb << ")" << ", ";
-            std::map<int, int> sentence2count;
-            uint32_t whole_repetition = 0;
-            uint32_t sentence_repetition = 0;
-            for (const auto& position : pair.second) {
-              if (sentence2count.find(position.word_id) == sentence2count.end())
-                sentence2count[position.word_id] = 0;
-              sentence2count[position.word_id] += 1;
-            }
-            for (const auto& pair : sentence2count) {
-              sentence_repetition += 1;
-              whole_repetition += pair.second;
-              std::cout << "Sentence number " << pair.first << ": " << pair.second << "\t";
-            }
-            if (ka == merge_event.left_token && kb == merge_event.right_token){
-              chart_sentence_count.push_back(sentence_repetition);
-              chart_pair_count.push_back(whole_repetition);
-            }
-            std::cout << "-> score: " << sentence_repetition * whole_repetition;
-            std::cout << std::endl;
+            std::cout << "Key: " << "(" << ka << ", " << kb << ")" << ", sentence count: " << pair_sentence_count[pair.first] << ", whole count: " << pair_whole_count[pair.first]
+              << ", score: " << pair_sentence_count[pair.first] * pair_whole_count[pair.first] << std::endl;
           }
-          std::cerr << "@@@NAZAR: pair2pos value fin.@@@" << std::endl;
+
+          uint64_t comb = int2comb(merge_event.left_token, merge_event.right_token);
+          uint64_t score = calculate_score(comb);
+          uint32_t sentence_count;
+          uint32_t whole_count;
+          sentence_count = static_cast<uint32_t>(score >> 32u);
+          whole_count = static_cast<uint32_t>(score & UINT32_MAX);
+          chart_sentence_count.push_back(sentence_count);
+          chart_pair_count.push_back(whole_count);
 
           x = merge_event.left_token;
           y = merge_event.right_token;
