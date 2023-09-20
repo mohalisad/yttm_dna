@@ -1460,9 +1460,6 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
             std::cerr << "  subword: " << recipe_s[z] << "="
                       << recipe_s[x] + "+" + recipe_s[y] << std::endl;
           }
-          else{
-            std::cerr << std::endl << "!!!!!THIS PART SHOULD NOT BE EXECUTED BECAUSE NUM(INT)%1 IS ALWAYS ZERO!!!!" << std::endl;
-          }
           used_ids++;
           // now we have z = x + y rule in our rules
           rules.emplace_back(x, y, z);
