@@ -169,28 +169,18 @@ bool rule_intersection(BPE_Rule rule, uint32_t new_left, uint32_t new_right) {
 
 std::vector<flat_hash_map<uint64_t, std::vector<Position>>> pair2pos_vector;
 std::vector<flat_hash_map<uint64_t, std::vector<Position>>> pair2pos_for_delete;
-std::vector<flat_hash_map<uint64_t, std::vector<Position>>> aggregated_pair2pos;
+std::vector<flat_hash_map<uint64_t, flat_hash_map<uint64_t, uint64_t>>> aggregated_pair2pos;
 
 uint64_t calculate_score(uint64_t comb){
   uint32_t sentence_count = 0;
   uint32_t whole_count = 0;
   for (const auto& map : aggregated_pair2pos){
     if (map.find(comb) != map.end()){
-      std::vector<Position> comb_value = map.at(comb);
-      std::map<uint64_t, uint64_t> sentence2count;
-      uint32_t whole_repetition = 0;
-      uint32_t sentence_repetition = 0;
-      for (const auto& position : comb_value) {
-        if (sentence2count.find(position.word_id) == sentence2count.end())
-          sentence2count[position.word_id] = 0;
-        sentence2count[position.word_id] += 1;
+      flat_hash_map<uint64_t, uint64_t> thread_value = map.at(comb);
+      for (const auto& wordid2count : thread_value){
+        sentence_count += 1;
+        whole_count += wordid2count.second;
       }
-      for (const auto& pair : sentence2count) {
-        sentence_repetition += 1;
-        whole_repetition += pair.second;
-      }
-      sentence_count += sentence_repetition;
-      whole_count += whole_repetition;
     }
   }
   return int2comb(sentence_count, whole_count);
@@ -508,7 +498,7 @@ struct NodeEncoder {
 void build_linked_list(const std::vector<WordCount> &word_cnt,
                        std::vector<std::vector<NodeEncoder>> &list,
                        flat_hash_map<uint64_t, std::vector<Position>> &pair2pos,
-                       flat_hash_map<uint64_t, uint64_t> &pair2cnt, flat_hash_map<uint64_t, std::vector<Position>> &aggregated) {
+                       flat_hash_map<uint64_t, uint64_t> &pair2cnt, flat_hash_map<uint64_t, flat_hash_map<uint64_t, uint64_t>> &aggregated) {
   std::cerr << "___word_cnt in build_linked_list function___" << std::endl;
   for (uint64_t i = 0; i < word_cnt.size(); i++){
     for (uint64_t j = 0; j < word_cnt[i].word.size(); j++){
@@ -554,11 +544,14 @@ void build_linked_list(const std::vector<WordCount> &word_cnt,
           it->second.emplace_back(i, j);
         }
         // for aggregated
-        auto it_agg = aggregated.find(comb);
-        if (it_agg == aggregated.end()) {
-          aggregated[comb] = {{i, j}};
+        if (aggregated.find(comb) == aggregated.end()) {
+          aggregated[comb][i] = 1;
         } else {
-          it_agg->second.emplace_back(i, j);
+          if (aggregated[comb].find(i) == aggregated[comb].end()){
+            aggregated[comb][i] = 1;
+          } else{
+            aggregated[comb][i] += 1;
+          }
         }
         // pair2cnt is counter for pairs, so simply we add that pair to pair2cnt and .cnt is number of repetition for that  word
         pair2cnt[comb] += word_cnt[i].cnt;
@@ -580,12 +573,15 @@ void build_linked_list(const std::vector<WordCount> &word_cnt,
           // but if that pair is in pair2pos, we just append it
           it->second.emplace_back(i, j);
         }
-        // for aggregate
-        auto it_agg = aggregated.find(comb);
-        if (it_agg == aggregated.end()) {
-          aggregated[comb] = {{i, j}};
+        // for aggregated
+        if (aggregated.find(comb) == aggregated.end()) {
+          aggregated[comb][i] = 1;
         } else {
-          it_agg->second.emplace_back(i, j);
+          if (aggregated[comb].find(i) == aggregated[comb].end()){
+            aggregated[comb][i] = 1;
+          } else{
+            aggregated[comb][i] += 1;
+          }
         }
         // and here we add number of repetitions for that pair
         pair2cnt[comb] += cc;
@@ -618,7 +614,7 @@ void worker_doing_merge(
     std::atomic<uint32_t> &real_n_tokens,
     std::vector<std::atomic<uint32_t>> &results_ready, const BpeConfig &bpe_config,
     std::mutex &main_loop_mt, std::condition_variable &main_loop_cv,
-    flat_hash_map<uint64_t, std::vector<Position>> &pair2pos_delete, flat_hash_map<uint64_t, std::vector<Position>> &aggregated) {
+    flat_hash_map<uint64_t, std::vector<Position>> &pair2pos_delete, flat_hash_map<uint64_t, flat_hash_map<uint64_t, uint64_t>> &aggregated) {
   auto &pair2cnt = pair2cnt_g[thread_id];
   flat_hash_set<uint32_t> left_tokens;
   flat_hash_set<uint32_t> right_tokens;
@@ -658,9 +654,7 @@ void worker_doing_merge(
     }
     pair2pos_delete[comb].emplace_back(Position(word_id, pos_id));
 
-    aggregated[comb].erase(std::remove_if(aggregated[comb].begin(), aggregated[comb].end(), [word_id, pos_id](const Position &p) {
-      return p.word_id == word_id && p.pos_id == pos_id;
-    }), aggregated[comb].end());
+    aggregated[comb][word_id] -= 1;
     std::cerr << "&&&&&&&&&&&&&&&&&&&&&&&&&&&&& Removing pair fin. &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&" << std::endl;
 
     pair2cnt[comb] -= word_freq[word_id];
@@ -677,12 +671,15 @@ void worker_doing_merge(
     } else {
       it->second.emplace_back(word_id, pos_id);
     }
-    // for aggregate
-    auto it_agg = aggregated.find(comb);
-    if (it_agg == aggregated.end()) {
-      aggregated[comb] = {{word_id, pos_id}};
+    // for aggregated
+    if (aggregated.find(comb) == aggregated.end()) {
+      aggregated[comb][word_id] = 1;
     } else {
-      it_agg->second.emplace_back(word_id, pos_id);
+      if (aggregated[comb].find(word_id) == aggregated[comb].end()){
+        aggregated[comb][word_id] = 1;
+      } else{
+        aggregated[comb][word_id] += 1;
+      }
     }
     pair2cnt[comb] += word_freq[word_id];
   };
@@ -692,9 +689,15 @@ void worker_doing_merge(
     assert(it != pair2pos.end());
     it->second.emplace_back(word_id, pos_id);
     // for aggregated
-    auto it_agg = aggregated.find(get_pair_code(word_id, pos_id));
-    assert(it_agg != aggregated.end());
-    it_agg->second.emplace_back(word_id, pos_id);
+    if (aggregated.find(get_pair_code(word_id, pos_id)) == aggregated.end()){
+      aggregated[get_pair_code(word_id, pos_id)][word_id] = 1;
+    } else{
+      if (aggregated[get_pair_code(word_id, pos_id)].find(word_id) == aggregated[get_pair_code(word_id, pos_id)].end()){
+        aggregated[get_pair_code(word_id, pos_id)][word_id] = 1;
+      } else{
+        aggregated[get_pair_code(word_id, pos_id)][word_id] += 1;
+      }
+    }
   };
 
   // in this function we can add those characters that have seg_len more than one
@@ -712,12 +715,14 @@ void worker_doing_merge(
       it->second.emplace_back(word_id, pos_id);
     }
     // for aggregate
-    auto it_agg = aggregated.find(comb);
-    if (it_agg == aggregated.end()) {
-      aggregated[comb] = {{word_id, pos_id}};
-      assert(aggregated[comb].size() == 1);
+    if (aggregated.find(comb) == aggregated.end()) {
+      aggregated[comb][word_id] = 1;
     } else {
-      it_agg->second.emplace_back(word_id, pos_id);
+      if (aggregated[comb].find(word_id) == aggregated[comb].end()){
+        aggregated[comb][word_id] = 1;
+      } else{
+        aggregated[comb][word_id] += 1;
+      }
     }
     pair2cnt[comb] += real_cnt;
   };
@@ -1396,25 +1401,16 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
           flat_hash_map<uint64_t, uint64_t> pair_sentence_count;
           flat_hash_map<uint64_t, uint64_t> pair_whole_count;
           for (const auto& map : aggregated_pair2pos){
-            for (const auto& pair : map) {
-              std::map<uint64_t, uint64_t> sentence2count;
-              uint32_t whole_repetition = 0;
-              uint32_t sentence_repetition = 0;
-              for (const auto& position : pair.second) {
-                if (sentence2count.find(position.word_id) == sentence2count.end())
-                  sentence2count[position.word_id] = 0;
-                sentence2count[position.word_id] += 1;
+            for (const auto& comb2map : map){
+              uint64_t main_comb = comb2map.first;
+              for (const auto& wordid2count : comb2map.second){
+                if (pair_sentence_count.find(main_comb) == pair_sentence_count.end())
+                  pair_sentence_count[main_comb] = 0;
+                pair_sentence_count[main_comb] += 1;
+                if (pair_whole_count.find(main_comb) == pair_whole_count.end())
+                  pair_whole_count[main_comb] = 0;
+                pair_whole_count[main_comb] += wordid2count.second;
               }
-              for (const auto& pair : sentence2count) {
-                sentence_repetition += 1;
-                whole_repetition += pair.second;
-              }
-              if (pair_sentence_count.find(pair.first) == pair_sentence_count.end())
-                pair_sentence_count[pair.first] = 0;
-              pair_sentence_count[pair.first] += sentence_repetition;
-              if (pair_whole_count.find(pair.first) == pair_whole_count.end())
-                pair_whole_count[pair.first] = 0;
-              pair_whole_count[pair.first] += whole_repetition;
             }
           }
 
