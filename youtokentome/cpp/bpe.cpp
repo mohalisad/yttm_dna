@@ -168,7 +168,6 @@ bool rule_intersection(BPE_Rule rule, uint32_t new_left, uint32_t new_right) {
 }
 
 std::vector<flat_hash_map<uint64_t, std::vector<Position>>> pair2pos_vector;
-std::vector<flat_hash_map<uint64_t, std::vector<Position>>> pair2pos_for_delete;
 std::vector<flat_hash_map<uint64_t, flat_hash_map<uint64_t, uint64_t>>> aggregated_pair2pos;
 
 uint64_t calculate_score(uint64_t comb){
@@ -614,7 +613,7 @@ void worker_doing_merge(
     std::atomic<uint32_t> &real_n_tokens,
     std::vector<std::atomic<uint32_t>> &results_ready, const BpeConfig &bpe_config,
     std::mutex &main_loop_mt, std::condition_variable &main_loop_cv,
-    flat_hash_map<uint64_t, std::vector<Position>> &pair2pos_delete, flat_hash_map<uint64_t, flat_hash_map<uint64_t, uint64_t>> &aggregated) {
+    flat_hash_map<uint64_t, flat_hash_map<uint64_t, uint64_t>> &aggregated) {
   auto &pair2cnt = pair2cnt_g[thread_id];
   flat_hash_set<uint32_t> left_tokens;
   flat_hash_set<uint32_t> right_tokens;
@@ -648,11 +647,6 @@ void worker_doing_merge(
     // std::cerr << "pair code: (" << xb << "," << xc << ") - sentence number: " << word_id << " - position id: " << pos_id << " - number of repetition: " << word_freq[word_id] << std::endl;
 
     uint64_t comb = get_pair_code(word_id, pos_id);
-
-    if (pair2pos_delete.find(comb) == pair2pos_delete.end()){
-      pair2pos_delete[comb] = {};
-    }
-    pair2pos_delete[comb].emplace_back(Position(word_id, pos_id));
 
     aggregated[comb][word_id] -= 1;
     // std::cerr << "&&&&&&&&&&&&&&&&&&&&&&&&&&&&& Removing pair fin. &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&" << std::endl;
@@ -1038,7 +1032,6 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
                              BpeConfig bpe_config, BPEState *bpe_state) {
   assert(bpe_config.n_threads >= 1 || bpe_config.n_threads == -1);
   pair2pos_vector.resize(bpe_config.n_threads);
-  pair2pos_for_delete.resize(bpe_config.n_threads);
   aggregated_pair2pos.resize(bpe_config.n_threads);
   uint64_t n_threads = bpe_config.n_threads;
   std::vector<uint64_t> split_pos;
@@ -1173,7 +1166,7 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
                              word_freq, mt, cv, task_order, thread_use_hs,
                              char2id, left_tokens_submit, right_tokens_submit,
                              real_n_tokens, results_ready, bpe_config,
-                             main_loop_mt, main_loop_cv, pair2pos_for_delete[thread_id], aggregated_pair2pos[thread_id]);
+                             main_loop_mt, main_loop_cv, aggregated_pair2pos[thread_id]);
         },
         i);
   }
