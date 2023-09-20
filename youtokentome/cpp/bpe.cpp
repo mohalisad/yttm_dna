@@ -1438,7 +1438,7 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
           // add string of y to x and put that to z
           recipe_s[z] = recipe_s[x] + recipe_s[y];
 
-          if (used_ids % 1 == 0) {
+          if (used_ids % 1000 == 0) {
             int used_symbols = 0;
             std::cerr << "id: " << z << "=" << x << "+" << y;
             used_symbols += std::to_string(z).size();
