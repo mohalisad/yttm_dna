@@ -17,6 +17,7 @@ cdef extern from "bpe.h" namespace "vkcom":
 
     cdef cppclass BpeConfig:
         double character_coverage
+        double alpha
         int n_threads
         SpecialTokens special_tokens
 
@@ -66,6 +67,7 @@ cdef class BPE:
               model,
               vocab_size,
               coverage=1.0,
+              alpha=0.1,
               n_threads=-1,
               pad_id=0,
               unk_id=1,
@@ -74,6 +76,7 @@ cdef class BPE:
 
         cdef BpeConfig bpe_config
         bpe_config.character_coverage = coverage
+        bpe_config.alpha = alpha
         bpe_config.n_threads = n_threads
         bpe_config.special_tokens.pad_id = pad_id
         bpe_config.special_tokens.unk_id = unk_id

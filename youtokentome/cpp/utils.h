@@ -44,6 +44,7 @@ struct SpecialTokens {
 
 struct BpeConfig {
   double character_coverage = 1;
+  double alpha = 0.1;
   int n_threads = 0;
   SpecialTokens special_tokens;
 

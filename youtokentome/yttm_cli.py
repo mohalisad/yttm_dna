@@ -31,6 +31,13 @@ def main():
     show_default=True,
 )
 @click.option(
+    "--alpha",
+    type=click.FLOAT,
+    help="alpha value in ln_alpha policy.",
+    default=0.1,
+    show_default=True,
+)
+@click.option(
     "--n_threads",
     type=click.INT,
     help="Number of threads.",
@@ -57,13 +64,14 @@ def main():
     default=3,
     show_default=True,
 )
-def bpe(data, model, vocab_size, coverage, n_threads, pad_id, unk_id, bos_id, eos_id):
+def bpe(data, model, vocab_size, coverage, alpha, n_threads, pad_id, unk_id, bos_id, eos_id):
     """Train BPE model."""
     yttmc.BPE.train(
         data=data,
         model=model,
         vocab_size=vocab_size,
         coverage=coverage,
+        alpha=alpha,
         n_threads=n_threads,
         pad_id=pad_id,
         unk_id=unk_id,

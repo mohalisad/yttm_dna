@@ -1555,6 +1555,10 @@ Status check_config(BpeConfig &bpe_config, int vocab_size) {
     return Status(1, "coverage value must be in the range (0, 1]. Current value of coverage = " +
         std::to_string(bpe_config.character_coverage));
   }
+  if (bpe_config.alpha <= 0 || bpe_config.alpha > 1) {
+    return Status(1, "alpha value must be in the range (0, 1]. Current value of coverage = " +
+        std::to_string(bpe_config.alpha));
+  }
   if (bpe_config.special_tokens.unk_id < 0 ||
       bpe_config.special_tokens.unk_id >= vocab_size) {
     return Status(1,
@@ -1616,6 +1620,7 @@ void print_config(const std::string &input_path, const std::string &model_path,
   std::cerr << "  n_threads: " << bpe_config.n_threads << std::endl;
   std::cerr << "  character_coverage: " << bpe_config.character_coverage
             << std::endl;
+  std::cerr << "  alpha: " << bpe_config.alpha << std::endl;
   std::cerr << "  pad: " << bpe_config.special_tokens.pad_id << std::endl;
   std::cerr << "  unk: " << bpe_config.special_tokens.unk_id << std::endl;
   std::cerr << "  bos: " << bpe_config.special_tokens.bos_id << std::endl;
