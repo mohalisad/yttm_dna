@@ -150,7 +150,7 @@ uint64_t calculate_sentence_and_whole_count(uint64_t comb){
 }
 
 uint64_t calculate_score(uint32_t sentence_count, uint32_t whole_count){
-  float main_score = (static_cast<float>(whole_count) * (log(static_cast<float>(line_number) / static_cast<float>(sentence_count)))) * 1000;
+  float main_score = (static_cast<float>(whole_count) * (log(static_cast<float>(line_number) / static_cast<float>(sentence_count+0.0001)))) * 1000;
   return static_cast<uint64_t>(main_score);
 }
 
