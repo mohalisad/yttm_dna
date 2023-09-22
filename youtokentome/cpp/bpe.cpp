@@ -28,6 +28,7 @@
 
 std::vector<uint64_t> chart_sentence_count;
 std::vector<uint64_t> chart_pair_count;
+uint64_t line_number = 0;
 
 void chart_write_vector_in_file(const std::string& file_path, std::vector<uint64_t> main_vector){
   std::ofstream outfile(file_path);
@@ -118,6 +119,50 @@ uint64_t int2comb(uint32_t a, uint32_t b) {
   return (static_cast<uint64_t >(a) << 32u) + b;
 }
 
+struct Position {
+  uint64_t word_id, pos_id;
+
+  Position(uint64_t word_id, uint64_t pos_id) : word_id(word_id), pos_id(pos_id) {}
+
+  bool operator<(const Position &other) const {
+    return word_id < other.word_id ||
+        (word_id == other.word_id && pos_id < other.pos_id);
+  }
+};
+
+std::vector<flat_hash_map<uint64_t, std::vector<Position>>> pair2pos_vector;
+std::vector<flat_hash_map<uint64_t, flat_hash_map<uint64_t, uint64_t>>> aggregated_pair2pos;
+
+uint64_t calculate_sentence_and_whole_count(uint64_t comb){
+  uint32_t sentence_count = 0;
+  uint32_t whole_count = 0;
+  for (const auto& map : aggregated_pair2pos){
+    if (map.find(comb) != map.end()){
+      flat_hash_map<uint64_t, uint64_t> thread_value = map.at(comb);
+      for (const auto& wordid2count : thread_value){
+        sentence_count += 1;
+        whole_count += wordid2count.second;
+      }
+    }
+  }
+  return int2comb(sentence_count, whole_count);
+}
+
+uint64_t calculate_score(uint32_t sentence_count, uint32_t whole_count){
+  float main_score = (static_cast<float>(whole_count) * (log(static_cast<float>(line_number) / static_cast<float>(sentence_count)))) * 1000;
+  return static_cast<uint64_t>(main_score);
+}
+
+uint64_t calculate_counts_and_score(uint32_t left_token, uint32_t right_token){
+  uint64_t comb = int2comb(left_token, right_token);
+  uint64_t score = calculate_sentence_and_whole_count(comb);
+  uint32_t sentence_count;
+  uint32_t whole_count;
+  sentence_count = static_cast<uint32_t>(score >> 32u);
+  whole_count = static_cast<uint32_t>(score & UINT32_MAX);
+  return calculate_score(sentence_count, whole_count);
+}
+
 struct MergeCandidate {
   uint64_t count{0};
   uint32_t left_token{0};
@@ -129,8 +174,12 @@ struct MergeCandidate {
                                                                               right_token(right_token) {}
 
   bool operator<(const MergeCandidate &other) const {
-    if (count != other.count) {
-      return count < other.count;
+    // calculating this merge candidate score
+    uint64_t this_score = calculate_counts_and_score(left_token, right_token);
+    // calculating other merge candidate score
+    uint64_t other_score = calculate_counts_and_score(other.left_token, other.right_token);
+    if (this_score != other_score) {
+      return this_score < other_score;
     }
     auto this_mn = std::min(left_token, right_token);
     auto this_mx = std::max(left_token, right_token);
@@ -147,17 +196,6 @@ struct MergeCandidate {
   }
 };
 
-struct Position {
-  uint64_t word_id, pos_id;
-
-  Position(uint64_t word_id, uint64_t pos_id) : word_id(word_id), pos_id(pos_id) {}
-
-  bool operator<(const Position &other) const {
-    return word_id < other.word_id ||
-        (word_id == other.word_id && pos_id < other.pos_id);
-  }
-};
-
 int pairsInSeg(int x) {
   assert(x >= 2);
   return x / 2;
@@ -165,24 +203,6 @@ int pairsInSeg(int x) {
 
 bool rule_intersection(BPE_Rule rule, uint32_t new_left, uint32_t new_right) {
   return rule.y == new_left || rule.x == new_right;
-}
-
-std::vector<flat_hash_map<uint64_t, std::vector<Position>>> pair2pos_vector;
-std::vector<flat_hash_map<uint64_t, flat_hash_map<uint64_t, uint64_t>>> aggregated_pair2pos;
-
-uint64_t calculate_score(uint64_t comb){
-  uint32_t sentence_count = 0;
-  uint32_t whole_count = 0;
-  for (const auto& map : aggregated_pair2pos){
-    if (map.find(comb) != map.end()){
-      flat_hash_map<uint64_t, uint64_t> thread_value = map.at(comb);
-      for (const auto& wordid2count : thread_value){
-        sentence_count += 1;
-        whole_count += wordid2count.second;
-      }
-    }
-  }
-  return int2comb(sentence_count, whole_count);
 }
 
 struct SmallObjectQueue {
@@ -193,24 +213,18 @@ struct SmallObjectQueue {
   SmallObjectQueue() = default;
 
   void push(const MergeCandidate &event) {
-    uint64_t comb = int2comb(event.left_token, event.right_token);
-    uint64_t score = calculate_score(comb);
-    uint32_t sentence_count;
-    uint32_t whole_count;
-    sentence_count = static_cast<uint32_t>(score >> 32u);
-    whole_count = static_cast<uint32_t>(score & UINT32_MAX);
-    score = sentence_count * whole_count;
+    uint64_t score = calculate_counts_and_score(event.left_token, event.right_token);
     std::cerr << "in SMALL queue, the score of " << event.left_token << ", " << event.right_token << " is " << score << std::endl;
-    if (queue.size() <= event.count) {
-      queue.resize(event.count + 1);
+    if (queue.size() <= score) {
+      queue.resize(score + 1);
     }
     if (flag_started) {
-      assert(event.count + 1 <= queue.size());
+      assert(score + 1 <= queue.size());
     };
-    queue[event.count].push_back(event);
+    queue[score].push_back(event);
     _size++;
 #ifdef DETERMINISTIC_QUEUE
-    if (queue.size() - 1 == event.count && flag_started) {
+    if (queue.size() - 1 == score && flag_started) {
       sort(queue.back().begin(), queue.back().end());
     }
 #endif
@@ -264,13 +278,7 @@ struct BigObjectQueue {
   BigObjectQueue(uint64_t big_event_bound) : big_event_bound(big_event_bound) {}
 
   void push(const MergeCandidate &event) {
-    uint64_t comb = int2comb(event.left_token, event.right_token);
-    uint64_t score = calculate_score(comb);
-    uint32_t sentence_count;
-    uint32_t whole_count;
-    sentence_count = static_cast<uint32_t>(score >> 32u);
-    whole_count = static_cast<uint32_t>(score & UINT32_MAX);
-    score = sentence_count * whole_count;
+    uint64_t score = calculate_counts_and_score(event.left_token, event.right_token);
     std::cerr << "in BIG queue, the score of " << event.left_token << ", " << event.right_token << " is " << score << std::endl;
     big_events.push_back(event);
   }
@@ -288,7 +296,8 @@ struct BigObjectQueue {
         big_events[i].count = check_cnt(comb);
       }
 
-      if (big_events[i].count < big_event_bound) {
+      uint64_t score = calculate_counts_and_score(big_events[i].left_token, big_events[i].right_token);
+      if (score < big_event_bound) {
         small_object_queue->push(big_events[i]);
         big_events[i] = big_events.back();
         big_events.pop_back();
@@ -300,7 +309,11 @@ struct BigObjectQueue {
     sort(big_events.begin(), big_events.end()); /// TODO remove unoptimal code
 #else
     for (auto &big_event : big_events) {
-      if (big_event.count > big_events.back().count) {
+      // not last score
+      uint64_t not_last_score = calculate_counts_and_score(big_event.left_token, big_event.right_token);
+      // last score
+      uint64_t last_score = calculate_counts_and_score(big_events.back().left_token, big_events.back().right_token);
+      if (not_last_score > last_score) {
         std::swap(big_event, big_events.back());
       }
     }
@@ -335,10 +348,11 @@ struct PriorityQueue {
   void push(const MergeCandidate &event) {
     // SADRA: event =  count, left_token, right_token
 
-    if (event.count == 0) {
+    uint64_t score = calculate_counts_and_score(event.left_token, event.right_token);
+    if (score == 0) {
       return;
     }
-    if (event.count < big_event_bound) {
+    if (score < big_event_bound) {
       small_queue.push(event);
     } else {
       big_queue.push(event);
@@ -1268,6 +1282,21 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
       real_pair_cnt[x.first] += x.second;
     }
   }
+  // calculating line number
+  for (const auto& map : pair2pos_vector) {
+    uint64_t max_word_id = 0;
+    int is_empty = 1;
+    for (const auto& pair : map) {
+      for (const auto& position : pair.second) {
+        is_empty = 0;
+        if (position.word_id > max_word_id){
+          max_word_id = position.word_id;
+        }
+      }
+    }
+    if (is_empty == 0)
+      line_number += max_word_id + 1;
+  }
   std::cerr << "_________First counting_________" << std::endl;
   for (const auto &x : real_pair_cnt) {
     uint32_t ka, kb;
@@ -1412,11 +1441,11 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
             ka = static_cast<uint32_t>(pair.first >> 32u);
             kb = static_cast<uint32_t>(pair.first & UINT32_MAX);
             std::cout << "Key: " << "(" << ka << ", " << kb << ")" << ", sentence count: " << pair_sentence_count[pair.first] << ", whole count: " << pair_whole_count[pair.first]
-              << ", score: " << pair_sentence_count[pair.first] * pair_whole_count[pair.first] << std::endl;
+              << ", score: " << calculate_score(pair_sentence_count[pair.first], pair_whole_count[pair.first]) << std::endl;
           }
 
           uint64_t comb = int2comb(merge_event.left_token, merge_event.right_token);
-          uint64_t score = calculate_score(comb);
+          uint64_t score = calculate_sentence_and_whole_count(comb);
           uint32_t sentence_count;
           uint32_t whole_count;
           sentence_count = static_cast<uint32_t>(score >> 32u);
