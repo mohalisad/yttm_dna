@@ -140,7 +140,8 @@ uint64_t calculate_sentence_and_whole_count(uint64_t comb){
     if (map.find(comb) != map.end()){
       flat_hash_map<uint64_t, uint64_t> thread_value = map.at(comb);
       for (const auto& wordid2count : thread_value){
-        sentence_count += 1;
+        if (wordid2count.second > 0)
+          sentence_count += 1;
         whole_count += wordid2count.second;
       }
     }
@@ -1428,7 +1429,8 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
               for (const auto& wordid2count : comb2map.second){
                 if (pair_sentence_count.find(main_comb) == pair_sentence_count.end())
                   pair_sentence_count[main_comb] = 0;
-                pair_sentence_count[main_comb] += 1;
+                if (wordid2count.second > 0)
+                  pair_sentence_count[main_comb] += 1;
                 if (pair_whole_count.find(main_comb) == pair_whole_count.end())
                   pair_whole_count[main_comb] = 0;
                 pair_whole_count[main_comb] += wordid2count.second;
