@@ -24,7 +24,7 @@
 #include "utf8.h"
 #include "utils.h"
 
-// #define DETERMINISTIC_QUEUE
+#define DETERMINISTIC_QUEUE
 
 std::vector<uint64_t> chart_sentence_count;
 std::vector<uint64_t> chart_pair_count;
