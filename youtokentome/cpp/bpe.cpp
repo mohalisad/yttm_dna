@@ -215,7 +215,7 @@ struct SmallObjectQueue {
 
   void push(const MergeCandidate &event) {
     uint64_t score = calculate_counts_and_score(event.left_token, event.right_token);
-    std::cout << "in SMALL queue, the score of " << event.left_token << ", " << event.right_token << " is " << score << std::endl;
+    // std::cout << "in SMALL queue, the score of " << event.left_token << ", " << event.right_token << " is " << score << std::endl;
     if (queue.size() <= score) {
       queue.resize(score + 1);
     }
@@ -279,8 +279,8 @@ struct BigObjectQueue {
   BigObjectQueue(uint64_t big_event_bound) : big_event_bound(big_event_bound) {}
 
   void push(const MergeCandidate &event) {
-    uint64_t score = calculate_counts_and_score(event.left_token, event.right_token);
-    std::cout << "in BIG queue, the score of " << event.left_token << ", " << event.right_token << " is " << score << std::endl;
+    // uint64_t score = calculate_counts_and_score(event.left_token, event.right_token);
+    // std::cout << "in BIG queue, the score of " << event.left_token << ", " << event.right_token << " is " << score << std::endl;
     big_events.push_back(event);
   }
 
@@ -479,12 +479,12 @@ flat_hash_map<VectorSegment, WordCount> compute_word_count(
       word.clear();
       word.push_back(char2id.at(SPACE_TOKEN));
       UTF8Iterator word_iter(begin_of_word, end_of_word);
-      std::string result;
+      // std::string result;
       for (; !word_iter.empty(); ++word_iter) {
         word.push_back(char2id.at(*word_iter));
-        result += *word_iter;
+        // result += *word_iter;
       }
-      std::cout << "___NAZAR: WORD COUNT___ " << result << " ___NAZAR: WORD COUNT FIN.___" << std::endl;
+      // std::cout << "___NAZAR: WORD COUNT___ " << result << " ___NAZAR: WORD COUNT FIN.___" << std::endl;
       hash2wordcnt[word_hash] = {word, 1};
     } else {
       it->second.cnt++;
@@ -513,14 +513,14 @@ void build_linked_list(const std::vector<WordCount> &word_cnt,
                        std::vector<std::vector<NodeEncoder>> &list,
                        flat_hash_map<uint64_t, std::vector<Position>> &pair2pos,
                        flat_hash_map<uint64_t, uint64_t> &pair2cnt, flat_hash_map<uint64_t, flat_hash_map<uint64_t, uint64_t>> &aggregated) {
-  std::cout << "___word_cnt in build_linked_list function___" << std::endl;
-  for (uint64_t i = 0; i < word_cnt.size(); i++){
-    for (uint64_t j = 0; j < word_cnt[i].word.size(); j++){
-      std::cout << word_cnt[i].word[j] << " ";
-    }
-    std::cout << ": " << word_cnt[i].cnt << std::endl;
-  }
-  std::cout << "___word_cnt in build_linked_list function fin.___" << std::endl;
+  // std::cout << "___word_cnt in build_linked_list function___" << std::endl;
+  // for (uint64_t i = 0; i < word_cnt.size(); i++){
+  //   for (uint64_t j = 0; j < word_cnt[i].word.size(); j++){
+  //     std::cout << word_cnt[i].word[j] << " ";
+  //   }
+  //   std::cout << ": " << word_cnt[i].cnt << std::endl;
+  // }
+  // std::cout << "___word_cnt in build_linked_list function fin.___" << std::endl;
   // for simple test, we have two words and one of them is repeated 2 times and the other one 1 time, so size of word_cnt is 2
   list.resize(word_cnt.size());
   // first we loop over words
@@ -654,17 +654,17 @@ void worker_doing_merge(
 
   auto remove_pair = [&](int word_id, int pos_id) {
 
-    std::cout << "&&&&&&&&&&&&&&&&&&&&&&&&&&&&& Removing pair &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&" << std::endl;
-    uint64_t xa = get_pair_code(word_id, pos_id);
-    uint32_t xb, xc;
-    xb = static_cast<uint32_t>(xa >> 32u);
-    xc = static_cast<uint32_t>(xa & UINT32_MAX);
-    std::cout << "pair code: (" << xb << "," << xc << ") - sentence number: " << word_id << " - position id: " << pos_id << " - number of repetition: " << word_freq[word_id] << std::endl;
+    // std::cout << "&&&&&&&&&&&&&&&&&&&&&&&&&&&&& Removing pair &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&" << std::endl;
+    // uint64_t xa = get_pair_code(word_id, pos_id);
+    // uint32_t xb, xc;
+    // xb = static_cast<uint32_t>(xa >> 32u);
+    // xc = static_cast<uint32_t>(xa & UINT32_MAX);
+    // std::cout << "pair code: (" << xb << "," << xc << ") - sentence number: " << word_id << " - position id: " << pos_id << " - number of repetition: " << word_freq[word_id] << std::endl;
 
     uint64_t comb = get_pair_code(word_id, pos_id);
 
     aggregated[comb][word_id] -= 1;
-    std::cout << "&&&&&&&&&&&&&&&&&&&&&&&&&&&&& Removing pair fin. &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&" << std::endl;
+    // std::cout << "&&&&&&&&&&&&&&&&&&&&&&&&&&&&& Removing pair fin. &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&" << std::endl;
 
     pair2cnt[comb] -= word_freq[word_id];
   };
@@ -1059,11 +1059,11 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
 
     split_pos.push_back(candidate);
   }
-  std::cout << "_____NAZAR: POSITION START_____" << std::endl;
-  for(std::vector<uint64_t>::iterator it = split_pos.begin(); it!= split_pos.end(); ++it) {
-        std::cout << *it << "\n";
-  }
-  std::cout << "_____NAZAR: POSITION END_____" << std::endl;
+  // std::cout << "_____NAZAR: POSITION START_____" << std::endl;
+  // for(std::vector<uint64_t>::iterator it = split_pos.begin(); it!= split_pos.end(); ++it) {
+  //       std::cout << *it << "\n";
+  // }
+  // std::cout << "_____NAZAR: POSITION END_____" << std::endl;
 
   std::vector<flat_hash_map<uint32_t, uint64_t>> shared_char_cnt(n_threads);
 
@@ -1298,25 +1298,25 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
     if (is_empty == 0)
       line_number += max_word_id + 1;
   }
-  std::cout << "_________First counting_________" << std::endl;
+  // std::cout << "_________First counting_________" << std::endl;
   for (const auto &x : real_pair_cnt) {
     uint32_t ka, kb;
     comb2int(x.first, ka, kb);
     merge_order.push({x.second, ka, kb});
-    std::cout << x.second << " " << ka << " " << kb << " === " << x.second << " " << recipe_s[ka] << " " << recipe_s[kb] << std::endl;
+    // std::cout << x.second << " " << ka << " " << kb << " === " << x.second << " " << recipe_s[ka] << " " << recipe_s[kb] << std::endl;
   }
-  std::cout << "_______First counting Fin.______" << std::endl;
+  // std::cout << "_______First counting Fin.______" << std::endl;
   std::vector<BPE_Rule> rules;
 
-  std::cout << std::endl << "@@@NAZAR: recipe initial value@@@" << std::endl;
-  for (const auto& pair : recipe) {
-      std::cout << "Key: " << pair.first << ", Values: ";
-      for (const auto& value : pair.second) {
-          std::cout << value << " ";
-      }
-      std::cout << std::endl;
-  }
-  std::cout << "@@@NAZAR: recipe initial value fin.@@@" << std::endl;
+  // std::cout << std::endl << "@@@NAZAR: recipe initial value@@@" << std::endl;
+  // for (const auto& pair : recipe) {
+  //     std::cout << "Key: " << pair.first << ", Values: ";
+  //     for (const auto& value : pair.second) {
+  //         std::cout << value << " ";
+  //     }
+  //     std::cout << std::endl;
+  // }
+  // std::cout << "@@@NAZAR: recipe initial value fin.@@@" << std::endl;
   // below function simply append recipe[y] values at the end of recipe[x] and 
   // returns a single std::vector<uint32_t> which is like {values of recipe[x], ..., values of recipe[y]}
   auto get_recipe = [&](uint32_t x, uint32_t y) {
@@ -1406,7 +1406,7 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
           // Let's check if it's freq is real!
           real_cnt = check_cnt(
               int2comb(merge_event.left_token, merge_event.right_token));
-          std::cout << "HERE--> " << merge_event.count << " " << real_cnt << std::endl;
+          // std::cout << "HERE--> " << merge_event.count << " " << real_cnt << std::endl;
           assert(real_cnt <= merge_event.count);
 
           if (real_cnt != merge_event.count) {
@@ -1421,30 +1421,30 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
             continue;
           }
 
-          flat_hash_map<uint64_t, uint64_t> pair_sentence_count;
-          flat_hash_map<uint64_t, uint64_t> pair_whole_count;
-          for (const auto& map : aggregated_pair2pos){
-            for (const auto& comb2map : map){
-              uint64_t main_comb = comb2map.first;
-              for (const auto& wordid2count : comb2map.second){
-                if (pair_sentence_count.find(main_comb) == pair_sentence_count.end())
-                  pair_sentence_count[main_comb] = 0;
-                if (wordid2count.second > 0)
-                  pair_sentence_count[main_comb] += 1;
-                if (pair_whole_count.find(main_comb) == pair_whole_count.end())
-                  pair_whole_count[main_comb] = 0;
-                pair_whole_count[main_comb] += wordid2count.second;
-              }
-            }
-          }
+          // flat_hash_map<uint64_t, uint64_t> pair_sentence_count;
+          // flat_hash_map<uint64_t, uint64_t> pair_whole_count;
+          // for (const auto& map : aggregated_pair2pos){
+          //   for (const auto& comb2map : map){
+          //     uint64_t main_comb = comb2map.first;
+          //     for (const auto& wordid2count : comb2map.second){
+          //       if (pair_sentence_count.find(main_comb) == pair_sentence_count.end())
+          //         pair_sentence_count[main_comb] = 0;
+          //       if (wordid2count.second > 0)
+          //         pair_sentence_count[main_comb] += 1;
+          //       if (pair_whole_count.find(main_comb) == pair_whole_count.end())
+          //         pair_whole_count[main_comb] = 0;
+          //       pair_whole_count[main_comb] += wordid2count.second;
+          //     }
+          //   }
+          // }
 
-          for (const auto& pair : pair_sentence_count) {
-            uint32_t ka, kb;
-            ka = static_cast<uint32_t>(pair.first >> 32u);
-            kb = static_cast<uint32_t>(pair.first & UINT32_MAX);
-            std::cout << "Key: " << "(" << ka << ", " << kb << ")" << ", sentence count: " << pair_sentence_count[pair.first] << ", whole count: " << pair_whole_count[pair.first]
-              << ", score: " << calculate_score(pair_sentence_count[pair.first], pair_whole_count[pair.first]) << std::endl;
-          }
+          // for (const auto& pair : pair_sentence_count) {
+          //   uint32_t ka, kb;
+          //   ka = static_cast<uint32_t>(pair.first >> 32u);
+          //   kb = static_cast<uint32_t>(pair.first & UINT32_MAX);
+          //   std::cout << "Key: " << "(" << ka << ", " << kb << ")" << ", sentence count: " << pair_sentence_count[pair.first] << ", whole count: " << pair_whole_count[pair.first]
+          //     << ", score: " << calculate_score(pair_sentence_count[pair.first], pair_whole_count[pair.first]) << std::endl;
+          // }
 
           uint64_t comb = int2comb(merge_event.left_token, merge_event.right_token);
           uint64_t score = calculate_sentence_and_whole_count(comb);
@@ -1458,7 +1458,7 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
           x = merge_event.left_token;
           y = merge_event.right_token;
           z = used_ids;
-          std::cout << "NAZAR: Selected candidate: " << "LEFT TOKEN: " << x << " RIGHT TOKEN: " << y << " Z: " << z << std::endl;
+          // std::cout << "NAZAR: Selected candidate: " << "LEFT TOKEN: " << x << " RIGHT TOKEN: " << y << " Z: " << z << std::endl;
           break;
         }
         if (last_failed_try != finished_cur && x != UINT32_MAX) {
@@ -1559,15 +1559,15 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
     t.join();
   }
 
-  std::cout << std::endl << "@@@NAZAR: recipe final value@@@" << std::endl;
-  for (const auto& pair : recipe) {
-      std::cout << "Key: " << pair.first << ", Values: ";
-      for (const auto& value : pair.second) {
-          std::cout << value << " ";
-      }
-      std::cout << std::endl;
-  }
-  std::cout << "@@@NAZAR: recipe final value fin.@@@" << std::endl;
+  // std::cout << std::endl << "@@@NAZAR: recipe final value@@@" << std::endl;
+  // for (const auto& pair : recipe) {
+  //     std::cout << "Key: " << pair.first << ", Values: ";
+  //     for (const auto& value : pair.second) {
+  //         std::cout << value << " ";
+  //     }
+  //     std::cout << std::endl;
+  // }
+  // std::cout << "@@@NAZAR: recipe final value fin.@@@" << std::endl;
 
   rename_tokens(char2id, rules, bpe_config.special_tokens, n_tokens);
 
