@@ -215,7 +215,7 @@ struct SmallObjectQueue {
 
   void push(const MergeCandidate &event) {
     uint64_t score = calculate_counts_and_score(event.left_token, event.right_token);
-    std::cerr << "in SMALL queue, the score of " << event.left_token << ", " << event.right_token << " is " << score << std::endl;
+    std::cout << "in SMALL queue, the score of " << event.left_token << ", " << event.right_token << " is " << score << std::endl;
     if (queue.size() <= score) {
       queue.resize(score + 1);
     }
@@ -280,7 +280,7 @@ struct BigObjectQueue {
 
   void push(const MergeCandidate &event) {
     uint64_t score = calculate_counts_and_score(event.left_token, event.right_token);
-    std::cerr << "in BIG queue, the score of " << event.left_token << ", " << event.right_token << " is " << score << std::endl;
+    std::cout << "in BIG queue, the score of " << event.left_token << ", " << event.right_token << " is " << score << std::endl;
     big_events.push_back(event);
   }
 
@@ -404,10 +404,10 @@ flat_hash_map<uint32_t, uint32_t> compute_alphabet_helper(
          cur++) {
     n_removed += frequencies[cur].first;
   }
-  std::cerr << "number of unique characters in the training data: "
+  std::cout << "number of unique characters in the training data: "
             << frequencies.size() << std::endl;
-  std::cerr << "number of deleted characters: " << cur << std::endl;
-  std::cerr << "number of unique characters left: " << frequencies.size() - cur
+  std::cout << "number of deleted characters: " << cur << std::endl;
+  std::cout << "number of unique characters left: " << frequencies.size() - cur
             << std::endl;
 
   flat_hash_map<uint32_t, uint32_t> char2id;
@@ -484,7 +484,7 @@ flat_hash_map<VectorSegment, WordCount> compute_word_count(
         word.push_back(char2id.at(*word_iter));
         result += *word_iter;
       }
-      std::cerr << "___NAZAR: WORD COUNT___ " << result << " ___NAZAR: WORD COUNT FIN.___" << std::endl;
+      std::cout << "___NAZAR: WORD COUNT___ " << result << " ___NAZAR: WORD COUNT FIN.___" << std::endl;
       hash2wordcnt[word_hash] = {word, 1};
     } else {
       it->second.cnt++;
@@ -513,14 +513,14 @@ void build_linked_list(const std::vector<WordCount> &word_cnt,
                        std::vector<std::vector<NodeEncoder>> &list,
                        flat_hash_map<uint64_t, std::vector<Position>> &pair2pos,
                        flat_hash_map<uint64_t, uint64_t> &pair2cnt, flat_hash_map<uint64_t, flat_hash_map<uint64_t, uint64_t>> &aggregated) {
-  std::cerr << "___word_cnt in build_linked_list function___" << std::endl;
+  std::cout << "___word_cnt in build_linked_list function___" << std::endl;
   for (uint64_t i = 0; i < word_cnt.size(); i++){
     for (uint64_t j = 0; j < word_cnt[i].word.size(); j++){
-      std::cerr << word_cnt[i].word[j] << " ";
+      std::cout << word_cnt[i].word[j] << " ";
     }
-    std::cerr << ": " << word_cnt[i].cnt << std::endl;
+    std::cout << ": " << word_cnt[i].cnt << std::endl;
   }
-  std::cerr << "___word_cnt in build_linked_list function fin.___" << std::endl;
+  std::cout << "___word_cnt in build_linked_list function fin.___" << std::endl;
   // for simple test, we have two words and one of them is repeated 2 times and the other one 1 time, so size of word_cnt is 2
   list.resize(word_cnt.size());
   // first we loop over words
@@ -654,17 +654,17 @@ void worker_doing_merge(
 
   auto remove_pair = [&](int word_id, int pos_id) {
 
-    std::cerr << "&&&&&&&&&&&&&&&&&&&&&&&&&&&&& Removing pair &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&" << std::endl;
+    std::cout << "&&&&&&&&&&&&&&&&&&&&&&&&&&&&& Removing pair &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&" << std::endl;
     uint64_t xa = get_pair_code(word_id, pos_id);
     uint32_t xb, xc;
     xb = static_cast<uint32_t>(xa >> 32u);
     xc = static_cast<uint32_t>(xa & UINT32_MAX);
-    std::cerr << "pair code: (" << xb << "," << xc << ") - sentence number: " << word_id << " - position id: " << pos_id << " - number of repetition: " << word_freq[word_id] << std::endl;
+    std::cout << "pair code: (" << xb << "," << xc << ") - sentence number: " << word_id << " - position id: " << pos_id << " - number of repetition: " << word_freq[word_id] << std::endl;
 
     uint64_t comb = get_pair_code(word_id, pos_id);
 
     aggregated[comb][word_id] -= 1;
-    std::cerr << "&&&&&&&&&&&&&&&&&&&&&&&&&&&&& Removing pair fin. &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&" << std::endl;
+    std::cout << "&&&&&&&&&&&&&&&&&&&&&&&&&&&&& Removing pair fin. &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&" << std::endl;
 
     pair2cnt[comb] -= word_freq[word_id];
   };
@@ -1059,11 +1059,11 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
 
     split_pos.push_back(candidate);
   }
-  std::cerr << "_____NAZAR: POSITION START_____" << std::endl;
+  std::cout << "_____NAZAR: POSITION START_____" << std::endl;
   for(std::vector<uint64_t>::iterator it = split_pos.begin(); it!= split_pos.end(); ++it) {
         std::cout << *it << "\n";
   }
-  std::cerr << "_____NAZAR: POSITION END_____" << std::endl;
+  std::cout << "_____NAZAR: POSITION END_____" << std::endl;
 
   std::vector<flat_hash_map<uint32_t, uint64_t>> shared_char_cnt(n_threads);
 
@@ -1298,17 +1298,17 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
     if (is_empty == 0)
       line_number += max_word_id + 1;
   }
-  std::cerr << "_________First counting_________" << std::endl;
+  std::cout << "_________First counting_________" << std::endl;
   for (const auto &x : real_pair_cnt) {
     uint32_t ka, kb;
     comb2int(x.first, ka, kb);
     merge_order.push({x.second, ka, kb});
-    std::cerr << x.second << " " << ka << " " << kb << " === " << x.second << " " << recipe_s[ka] << " " << recipe_s[kb] << std::endl;
+    std::cout << x.second << " " << ka << " " << kb << " === " << x.second << " " << recipe_s[ka] << " " << recipe_s[kb] << std::endl;
   }
-  std::cerr << "_______First counting Fin.______" << std::endl;
+  std::cout << "_______First counting Fin.______" << std::endl;
   std::vector<BPE_Rule> rules;
 
-  std::cerr << std::endl << "@@@NAZAR: recipe initial value@@@" << std::endl;
+  std::cout << std::endl << "@@@NAZAR: recipe initial value@@@" << std::endl;
   for (const auto& pair : recipe) {
       std::cout << "Key: " << pair.first << ", Values: ";
       for (const auto& value : pair.second) {
@@ -1316,7 +1316,7 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
       }
       std::cout << std::endl;
   }
-  std::cerr << "@@@NAZAR: recipe initial value fin.@@@" << std::endl;
+  std::cout << "@@@NAZAR: recipe initial value fin.@@@" << std::endl;
   // below function simply append recipe[y] values at the end of recipe[x] and 
   // returns a single std::vector<uint32_t> which is like {values of recipe[x], ..., values of recipe[y]}
   auto get_recipe = [&](uint32_t x, uint32_t y) {
@@ -1406,7 +1406,7 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
           // Let's check if it's freq is real!
           real_cnt = check_cnt(
               int2comb(merge_event.left_token, merge_event.right_token));
-          std::cerr << "HERE--> " << merge_event.count << " " << real_cnt << std::endl;
+          std::cout << "HERE--> " << merge_event.count << " " << real_cnt << std::endl;
           assert(real_cnt <= merge_event.count);
 
           if (real_cnt != merge_event.count) {
@@ -1458,7 +1458,7 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
           x = merge_event.left_token;
           y = merge_event.right_token;
           z = used_ids;
-          std::cerr << "NAZAR: Selected candidate: " << "LEFT TOKEN: " << x << " RIGHT TOKEN: " << y << " Z: " << z << std::endl;
+          std::cout << "NAZAR: Selected candidate: " << "LEFT TOKEN: " << x << " RIGHT TOKEN: " << y << " Z: " << z << std::endl;
           break;
         }
         if (last_failed_try != finished_cur && x != UINT32_MAX) {
@@ -1471,24 +1471,24 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
 
           if (used_ids % 1000 == 0) {
             int used_symbols = 0;
-            std::cerr << "id: " << z << "=" << x << "+" << y;
+            std::cout << "id: " << z << "=" << x << "+" << y;
             used_symbols += std::to_string(z).size();
             used_symbols += 1;
             used_symbols += std::to_string(x).size();
             used_symbols += 1;
             used_symbols += std::to_string(y).size();
             for (int j = used_symbols; j < 22 + 4; j++) {
-              std::cerr << " ";
+              std::cout << " ";
             }
             used_symbols = 0;
-            std::cerr << "freq: " << real_cnt;
+            std::cout << "freq: " << real_cnt;
             used_symbols += 5;
             used_symbols += std::to_string(real_cnt).size();
 
             for (int j = used_symbols; j < 15; j++) {
-              std::cerr << " ";
+              std::cout << " ";
             }
-            std::cerr << "  subword: " << recipe_s[z] << "="
+            std::cout << "  subword: " << recipe_s[z] << "="
                       << recipe_s[x] + "+" + recipe_s[y] << std::endl;
           }
           used_ids++;
@@ -1559,7 +1559,7 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
     t.join();
   }
 
-  std::cerr << std::endl << "@@@NAZAR: recipe final value@@@" << std::endl;
+  std::cout << std::endl << "@@@NAZAR: recipe final value@@@" << std::endl;
   for (const auto& pair : recipe) {
       std::cout << "Key: " << pair.first << ", Values: ";
       for (const auto& value : pair.second) {
@@ -1567,13 +1567,13 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
       }
       std::cout << std::endl;
   }
-  std::cerr << "@@@NAZAR: recipe final value fin.@@@" << std::endl;
+  std::cout << "@@@NAZAR: recipe final value fin.@@@" << std::endl;
 
   rename_tokens(char2id, rules, bpe_config.special_tokens, n_tokens);
 
   *bpe_state = {char2id, rules, bpe_config.special_tokens};
   bpe_state->dump(output_file);
-  std::cerr << "model saved to: " << output_file << std::endl;
+  std::cout << "model saved to: " << output_file << std::endl;
 
   chart_write_vector_in_file("./simpletest/bpe_sentence_count_chart.txt", chart_sentence_count);
   chart_write_vector_in_file("./simpletest/bpe_pair_count_chart.txt", chart_pair_count);
@@ -1644,19 +1644,19 @@ Status check_config(BpeConfig &bpe_config, int vocab_size) {
 
 void print_config(const std::string &input_path, const std::string &model_path,
                   int vocab_size, BpeConfig bpe_config) {
-  std::cerr << "Training parameters" << std::endl;
-  std::cerr << "  input: " << input_path << std::endl;
-  std::cerr << "  model: " << model_path << std::endl;
-  std::cerr << "  vocab_size: " << vocab_size << std::endl;
-  std::cerr << "  n_threads: " << bpe_config.n_threads << std::endl;
-  std::cerr << "  character_coverage: " << bpe_config.character_coverage
+  std::cout << "Training parameters" << std::endl;
+  std::cout << "  input: " << input_path << std::endl;
+  std::cout << "  model: " << model_path << std::endl;
+  std::cout << "  vocab_size: " << vocab_size << std::endl;
+  std::cout << "  n_threads: " << bpe_config.n_threads << std::endl;
+  std::cout << "  character_coverage: " << bpe_config.character_coverage
             << std::endl;
-  std::cerr << "  alpha: " << bpe_config.alpha << std::endl;
-  std::cerr << "  pad: " << bpe_config.special_tokens.pad_id << std::endl;
-  std::cerr << "  unk: " << bpe_config.special_tokens.unk_id << std::endl;
-  std::cerr << "  bos: " << bpe_config.special_tokens.bos_id << std::endl;
-  std::cerr << "  eos: " << bpe_config.special_tokens.eos_id << std::endl;
-  std::cerr << std::endl;
+  std::cout << "  alpha: " << bpe_config.alpha << std::endl;
+  std::cout << "  pad: " << bpe_config.special_tokens.pad_id << std::endl;
+  std::cout << "  unk: " << bpe_config.special_tokens.unk_id << std::endl;
+  std::cout << "  bos: " << bpe_config.special_tokens.bos_id << std::endl;
+  std::cout << "  eos: " << bpe_config.special_tokens.eos_id << std::endl;
+  std::cout << std::endl;
 }
 
 Status train_bpe(const std::string &input_path, const std::string &model_path,
@@ -1666,13 +1666,13 @@ Status train_bpe(const std::string &input_path, const std::string &model_path,
     return status;
   }
   print_config(input_path, model_path, vocab_size, bpe_config);
-  std::cerr << "reading file..." << std::endl;
+  std::cout << "reading file..." << std::endl;
   std::string data;
   status = fast_read_file_utf8(input_path, &data);
   if (!status.ok()) {
     return status;
   }
-  std::cerr << "learning bpe..." << std::endl;
+  std::cout << "learning bpe..." << std::endl;
   BPEState bpe_state;
   status = learn_bpe_from_string(data, vocab_size, model_path, bpe_config, &bpe_state);
   if (!status.ok()) {
@@ -2270,7 +2270,7 @@ Status BaseEncoder::encode_cli(const std::string &output_type_str, bool stream,
     const uint64_t batch_limit = 10 * 1024 * 1024;
     uint64_t total_progress = 0;
     uint64_t processed;
-    std::cerr << "n_threads: " << n_threads << std::endl;
+    std::cout << "n_threads: " << n_threads << std::endl;
     int chars_remove = 0;
     do {
       processed = 0;
@@ -2294,15 +2294,15 @@ Status BaseEncoder::encode_cli(const std::string &output_type_str, bool stream,
       total_progress += processed;
 
       for (int i = 0; i < chars_remove; i++) {
-        std::cerr << '\b';
+        std::cout << '\b';
       }
       chars_remove = 0;
       std::string message = "bytes processed: ";
       chars_remove += message.size();
       chars_remove += std::to_string(total_progress).length();
-      std::cerr << message << total_progress;
+      std::cout << message << total_progress;
     } while (processed >= batch_limit);
-    std::cerr << std::endl;
+    std::cout << std::endl;
   }
   return Status();
 }
