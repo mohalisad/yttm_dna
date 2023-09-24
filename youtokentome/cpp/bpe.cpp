@@ -1575,8 +1575,8 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
   bpe_state->dump(output_file);
   std::cout << "model saved to: " << output_file << std::endl;
 
-  chart_write_vector_in_file("./simpletest/bpe_sentence_count_chart.txt", chart_sentence_count);
-  chart_write_vector_in_file("./simpletest/bpe_pair_count_chart.txt", chart_pair_count);
+  chart_write_vector_in_file(output_file + ".sentence_count", chart_sentence_count);
+  chart_write_vector_in_file(output_file + ".pair_count", chart_pair_count);
 
   return Status();
 }
