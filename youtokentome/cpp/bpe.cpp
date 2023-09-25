@@ -543,18 +543,18 @@ void build_linked_list(const std::vector<WordCount> &word_cnt,
           // if that pair is in pair2pos, we just append this position to end of that pair positions
           it->second.emplace_back(i, j);
         }
-        // for aggregated
-        if (aggregated.find(comb) == aggregated.end()) {
-          aggregated[comb][i] = 1;
-        } else {
-          if (aggregated[comb].find(i) == aggregated[comb].end()){
-            aggregated[comb][i] = 1;
-          } else{
-            aggregated[comb][i] += 1;
-          }
-        }
         // pair2cnt is counter for pairs, so simply we add that pair to pair2cnt and .cnt is number of repetition for that  word
         pair2cnt[comb] += word_cnt[i].cnt;
+        // for aggregated
+        if (aggregated.find(comb) == aggregated.end()) {
+          aggregated[comb][i] = word_cnt[i].cnt;
+        } else {
+          if (aggregated[comb].find(i) == aggregated[comb].end()){
+            aggregated[comb][i] = word_cnt[i].cnt;
+          } else{
+            aggregated[comb][i] += word_cnt[i].cnt;
+          }
+        }
       }
       assert(list[i][j].seg_len >= 1);
 
@@ -573,18 +573,18 @@ void build_linked_list(const std::vector<WordCount> &word_cnt,
           // but if that pair is in pair2pos, we just append it
           it->second.emplace_back(i, j);
         }
-        // for aggregated
-        if (aggregated.find(comb) == aggregated.end()) {
-          aggregated[comb][i] = 1;
-        } else {
-          if (aggregated[comb].find(i) == aggregated[comb].end()){
-            aggregated[comb][i] = 1;
-          } else{
-            aggregated[comb][i] += 1;
-          }
-        }
         // and here we add number of repetitions for that pair
         pair2cnt[comb] += cc;
+        // for aggregated
+        if (aggregated.find(comb) == aggregated.end()) {
+          aggregated[comb][i] = cc;
+        } else {
+          if (aggregated[comb].find(i) == aggregated[comb].end()){
+            aggregated[comb][i] = cc;
+          } else{
+            aggregated[comb][i] += cc;
+          }
+        }
       }
     }
   }
@@ -649,10 +649,10 @@ void worker_doing_merge(
 
     uint64_t comb = get_pair_code(word_id, pos_id);
 
-    aggregated[comb][word_id] -= 1;
     std::cerr << "&&&&&&&&&&&&&&&&&&&&&&&&&&&&& Removing pair fin. &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&" << std::endl;
 
     pair2cnt[comb] -= word_freq[word_id];
+    aggregated[comb][word_id] -= word_freq[word_id];
   };
 
   // just add new values to pair2pos and pair2cnt
@@ -666,33 +666,23 @@ void worker_doing_merge(
     } else {
       it->second.emplace_back(word_id, pos_id);
     }
+    pair2cnt[comb] += word_freq[word_id];
     // for aggregated
     if (aggregated.find(comb) == aggregated.end()) {
-      aggregated[comb][word_id] = 1;
+      aggregated[comb][word_id] = word_freq[word_id];
     } else {
       if (aggregated[comb].find(word_id) == aggregated[comb].end()){
-        aggregated[comb][word_id] = 1;
+        aggregated[comb][word_id] = word_freq[word_id];
       } else{
-        aggregated[comb][word_id] += 1;
+        aggregated[comb][word_id] += word_freq[word_id];
       }
     }
-    pair2cnt[comb] += word_freq[word_id];
   };
 
   auto add_empty_pair = [&](uint64_t word_id, uint64_t pos_id) {
     auto it = pair2pos.find(get_pair_code(word_id, pos_id));
     assert(it != pair2pos.end());
     it->second.emplace_back(word_id, pos_id);
-    // for aggregated
-    if (aggregated.find(get_pair_code(word_id, pos_id)) == aggregated.end()){
-      aggregated[get_pair_code(word_id, pos_id)][word_id] = 1;
-    } else{
-      if (aggregated[get_pair_code(word_id, pos_id)].find(word_id) == aggregated[get_pair_code(word_id, pos_id)].end()){
-        aggregated[get_pair_code(word_id, pos_id)][word_id] = 1;
-      } else{
-        aggregated[get_pair_code(word_id, pos_id)][word_id] += 1;
-      }
-    }
   };
 
   // in this function we can add those characters that have seg_len more than one
@@ -709,17 +699,17 @@ void worker_doing_merge(
     } else {
       it->second.emplace_back(word_id, pos_id);
     }
+    pair2cnt[comb] += real_cnt;
     // for aggregate
     if (aggregated.find(comb) == aggregated.end()) {
-      aggregated[comb][word_id] = 1;
+      aggregated[comb][word_id] = real_cnt;
     } else {
       if (aggregated[comb].find(word_id) == aggregated[comb].end()){
-        aggregated[comb][word_id] = 1;
+        aggregated[comb][word_id] = real_cnt;
       } else{
-        aggregated[comb][word_id] += 1;
+        aggregated[comb][word_id] += real_cnt;
       }
     }
-    pair2cnt[comb] += real_cnt;
   };
 
   auto add_merge_compensation = [&](uint64_t word_id, uint64_t pos_id,
@@ -727,6 +717,7 @@ void worker_doing_merge(
     assert(score_diff > 0);
     uint64_t comb = get_self_code(word_id, pos_id);
     pair2cnt[comb] -= score_diff * word_freq[word_id];
+    aggregated[comb][word_id] -= score_diff * word_freq[word_id];
   };
 
   auto seg_len_decrement = [&](uint64_t word_id, uint64_t pos_id) {
@@ -738,6 +729,7 @@ void worker_doing_merge(
     }
     uint64_t comb = get_self_code(word_id, pos_id);
     pair2cnt[comb] -= word_freq[word_id];
+    aggregated[comb][word_id] -= word_freq[word_id];
   };
 
   auto self_full_remove = [&](uint64_t word_id, uint64_t pos_id) {
@@ -745,6 +737,7 @@ void worker_doing_merge(
     uint32_t real_cnt = word_freq[word_id] *
         pairsInSeg(lists_of_tokens[word_id][pos_id].seg_len);
     pair2cnt[comb] -= real_cnt;
+    aggregated[comb][word_id] -= real_cnt;
   };
 
   auto try_merge = [&](uint64_t word_id, uint64_t pos1, uint64_t pos2) {
@@ -956,8 +949,6 @@ void worker_doing_merge(
       }
     }
     pair2pos.erase(int2comb(x, y));
-    // for aggregate
-    aggregated.erase(int2comb(x, y));
     {
       std::unique_lock<std::mutex> lk(mt[thread_id]);
 
