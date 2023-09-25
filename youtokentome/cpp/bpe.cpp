@@ -132,6 +132,7 @@ struct Position {
 
 std::vector<flat_hash_map<uint64_t, std::vector<Position>>> pair2pos_vector;
 std::vector<flat_hash_map<uint64_t, flat_hash_map<uint64_t, uint64_t>>> aggregated_pair2pos;
+flat_hash_map<uint64_t, uint64_t> temp_score;
 
 uint64_t calculate_sentence_and_whole_count(uint64_t comb){
   uint32_t sentence_count = 0;
@@ -164,6 +165,23 @@ uint64_t calculate_counts_and_score(uint32_t left_token, uint32_t right_token){
   return calculate_score(sentence_count, whole_count);
 }
 
+void fill_temp_score_hash_map_before_sort(){
+  flat_hash_map<uint64_t, uint16_t> is_visited;
+  for (const auto& map : aggregated_pair2pos){
+    for (const auto& comb2map : map){
+      uint64_t comb = comb2map.first;
+      if (is_visited.find(comb) == is_visited.end()){
+        is_visited[comb] = 1;
+        uint32_t left_token;
+        uint32_t right_token;
+        left_token = static_cast<uint32_t>(comb >> 32u);
+        right_token = static_cast<uint32_t>(comb & UINT32_MAX);
+        temp_score[comb] = calculate_counts_and_score(left_token, right_token);
+      }
+    }
+  }
+}
+
 struct MergeCandidate {
   uint64_t count{0};
   uint32_t left_token{0};
@@ -176,9 +194,13 @@ struct MergeCandidate {
 
   bool operator<(const MergeCandidate &other) const {
     // calculating this merge candidate score
-    uint64_t this_score = calculate_counts_and_score(left_token, right_token);
+    uint64_t this_comb = int2comb(left_token, right_token);
+    assert(temp_score.find(this_comb) != temp_score.end());
+    uint64_t this_score = temp_score[this_comb];
     // calculating other merge candidate score
-    uint64_t other_score = calculate_counts_and_score(other.left_token, other.right_token);
+    uint64_t other_comb = int2comb(other.left_token, other.right_token);
+    assert(temp_score.find(other_comb) != temp_score.end());
+    uint64_t other_score = temp_score[other_comb];
     if (this_score != other_score) {
       return this_score < other_score;
     }
@@ -226,7 +248,9 @@ struct SmallObjectQueue {
     _size++;
 #ifdef DETERMINISTIC_QUEUE
     if (queue.size() - 1 == score && flag_started) {
+      fill_temp_score_hash_map_before_sort();
       sort(queue.back().begin(), queue.back().end());
+      temp_score.clear();
     }
 #endif
   }
@@ -244,7 +268,9 @@ struct SmallObjectQueue {
     }
 #ifdef DETERMINISTIC_QUEUE
     if (moved_down && !queue.empty()) {
+      fill_temp_score_hash_map_before_sort();
       sort(queue.back().begin(), queue.back().end());
+      temp_score.clear();
     }
 #endif
   }
@@ -307,7 +333,9 @@ struct BigObjectQueue {
       }
     }
 #ifdef DETERMINISTIC_QUEUE
+    fill_temp_score_hash_map_before_sort();
     sort(big_events.begin(), big_events.end()); /// TODO remove unoptimal code
+    temp_score.clear();
 #else
     for (auto &big_event : big_events) {
       // not last score
