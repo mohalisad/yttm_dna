@@ -24,7 +24,7 @@
 #include "utf8.h"
 #include "utils.h"
 
-#define DETERMINISTIC_QUEUE
+// #define DETERMINISTIC_QUEUE
 
 std::vector<uint64_t> chart_sentence_count;
 std::vector<uint64_t> chart_pair_count;
@@ -371,8 +371,8 @@ struct PriorityQueue {
   uint64_t big_event_bound;
 
   // SADRA: Maybe a better threshold to init!
-  explicit PriorityQueue(uint64_t dataset_size) : big_queue(static_cast<uint64_t>(sqrt(dataset_size))),
-                                                  big_event_bound(static_cast<uint64_t>(sqrt(dataset_size))) {}
+  explicit PriorityQueue(uint64_t dataset_size) : big_queue(UINT32_MAX),
+                                                  big_event_bound(UINT32_MAX) {}
 
   void push(const MergeCandidate &event) {
     // SADRA: event =  count, left_token, right_token
@@ -1488,7 +1488,7 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
           // add string of y to x and put that to z
           recipe_s[z] = recipe_s[x] + recipe_s[y];
 
-          if (used_ids % 1000 == 0) {
+          if (used_ids % 1 == 0) {
             int used_symbols = 0;
             std::cout << "id: " << z << "=" << x << "+" << y;
             used_symbols += std::to_string(z).size();
