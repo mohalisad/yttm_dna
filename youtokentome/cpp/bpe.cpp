@@ -29,6 +29,7 @@
 std::vector<uint64_t> chart_sentence_count;
 std::vector<uint64_t> chart_pair_count;
 uint64_t line_number = 0;
+float hyper_parameter_alpha = 0;
 
 void chart_write_vector_in_file(const std::string& file_path, std::vector<uint64_t> main_vector){
   std::ofstream outfile(file_path);
@@ -151,7 +152,7 @@ uint64_t calculate_sentence_and_whole_count(uint64_t comb){
 }
 
 uint64_t calculate_score(uint32_t sentence_count, uint32_t whole_count){
-  float main_score = (static_cast<float>(whole_count) * (log(static_cast<float>(line_number + 1) / static_cast<float>(sentence_count+0.0001)))) * 1000;
+  float main_score = ( log(static_cast<float>(sentence_count+1)) + (hyper_parameter_alpha * log(static_cast<float>(whole_count+1))) ) * 1000;
   return static_cast<uint64_t>(main_score);
 }
 
@@ -1317,6 +1318,7 @@ Status learn_bpe_from_string(std::string &text_utf8, int n_tokens,
     if (is_empty == 0)
       line_number += max_word_id + 1;
   }
+  hyper_parameter_alpha = bpe_config.alpha;
   // std::cout << "_________First counting_________" << std::endl;
   for (const auto &x : real_pair_cnt) {
     uint32_t ka, kb;
